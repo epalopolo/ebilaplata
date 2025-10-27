@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Escala - Registro</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- SheetJS para leer xlsx en cliente -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.2/dist/xlsx.full.min.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <main class="container">
+    <section id="landing" class="card">
+      <h1>Registro</h1>
+      <p>Ingresá tu nombre y apellido para continuar</p>
+      <div class="field">
+        <label>Nombre</label>
+        <input id="inputName" placeholder="Ej: María" />
+      </div>
+      <div class="field">
+        <label>Apellido</label>
+        <input id="inputLast" placeholder="Ej: Pérez" />
+      </div>
+      <div class="actions">
+        <button id="btnStart">Continuar</button>
+        <label class="small">
+          Si querés, podés subir tu propio archivo Excel (.xlsx):
+          <input id="fileXLSX" type="file" accept=".xlsx" />
+        </label>
+      </div>
+    </section>
+
+    <section id="tableSection" class="hidden">
+      <div class="topbar">
+        <div>
+          <strong id="userLabel"></strong>
+        </div>
+        <div class="controls">
+          <button id="btnReload">Recargar tabla</button>
+          <button id="btnAdmin">Admin (descargar CSV)</button>
+          <button id="btnSave" disabled>Guardar cambios</button>
+        </div>
+      </div>
+
+      <div id="tableWrap" class="card table-card"></div>
+
+      <div id="adm
