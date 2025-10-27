@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escala EBI - Tabla</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body onload="loadTable()">
+  <div class="header">
+    <h1>Escala EBI</h1>
+    <p id="user-info"></p>
+  </div>
+
+  <div id="table-container"></div>
+
+  <div class="actions">
+    <button id="save-button" onclick="saveChanges()" disabled>💾 Guardar cambios</button>
+    <button id="download-button" onclick="downloadCSV()" style="display:none;">⬇️ Descargar CSV (admin)</button>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
