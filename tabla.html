@@ -6,17 +6,14 @@
   <title>Escala EBI - Tabla</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body onload="loadTable()">
-  <div class="header">
-    <h1>Escala EBI</h1>
-    <p id="user-info"></p>
-  </div>
-
-  <div id="table-container"></div>
-
-  <div class="actions">
-    <button id="save-button" onclick="saveChanges()" disabled>💾 Guardar cambios</button>
-    <button id="download-button" onclick="downloadCSV()" style="display:none;">⬇️ Descargar CSV (admin)</button>
+<body>
+  <div class="main-container">
+    <div id="user-info" class="user-info"></div>
+    <div id="table-container" class="table-container"></div>
+    <div class="buttons">
+      <button id="save-button" disabled>Guardar cambios</button>
+      <button id="download-button" style="display:none;">Descargar CSV</button>
+    </div>
   </div>
 
   <script src="script.js"></script>
