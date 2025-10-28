@@ -1,3 +1,5 @@
+const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbycCP-7ac017G03vWNGdpRVmmLnJBgGGv-OZoqpGgQaR6dAiNPCaqHLkoGQKNNzrl8Z/exec";
+
 // script.js
 let userName = "";
 let userInitial = "";
