@@ -1,82 +1,204 @@
-const API_ROOT = window.location.origin; // on Koyeb the same domain will serve
 let userName = localStorage.getItem('userName') || '';
 let isAdmin = localStorage.getItem('isAdmin') === 'true';
-let edits = 0;
+let turnos = [];
 
-document.getElementById('user-info').textContent = isAdmin ? 'Administrador' : `Usuario: ${userName}`;
-if (isAdmin) document.getElementById('btnDownload').style.display = 'inline-block';
+document.getElementById('user-info').textContent = isAdmin ? '👑 Administrador' : `👤 ${userName}`;
 
-async function fetchTable() {
-  const res = await fetch('/api/table');
-  const j = await res.json();
-  render(j);
-}
-function render({ headers = [], table = [] }) {
-  const container = document.getElementById('table-container');
-  container.innerHTML = '';
-  const tableEl = document.createElement('table');
-  if (headers.length) {
-    const thead = document.createElement('thead');
-    const tr = document.createElement('tr');
-    headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; tr.appendChild(th); });
-    thead.appendChild(tr);
-    tableEl.appendChild(thead);
-  }
-  const tbody = document.createElement('tbody');
-  for (let r = 0; r < table.length; r++) {
-    const tr = document.createElement('tr');
-    for (let c = 0; c < table[r].length; c++) {
-      const td = document.createElement('td');
-      td.textContent = table[r][c] || '';
-      if (!td.textContent && !isAdmin) {
-        td.classList.add('editable');
-        td.addEventListener('click', () => {
-          if (td.textContent) return;
-          const nameShort = userName.split(' ')[0] + ' ' + (userName.split(' ')[1]?.[0] || '') + '.';
-          td.textContent = nameShort;
-          td.classList.remove('editable');
-          td.classList.add('filled');
-          edits++;
-          if (edits >= 3) document.getElementById('btnSave').disabled = false;
-        });
-      } else if (td.textContent) {
-        td.classList.add('locked');
-      }
-      tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
-  }
-  tableEl.appendChild(tbody);
-  container.appendChild(tableEl);
+if (isAdmin) {
+  document.getElementById('admin-controls').style.display = 'flex';
 }
 
-document.getElementById('btnSave').addEventListener('click', async () => {
-  const table = [...document.querySelectorAll('table tr')].map(tr => [...tr.children].map(td=>td.textContent));
+// Cargar turnos
+async function cargarTurnos() {
   try {
-    const res = await fetch('/api/save', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ data: table, user: userName })
-    });
-    if (res.ok) {
-      alert('Guardado OK');
-      edits = 0;
-      document.getElementById('btnSave').disabled = true;
-    } else throw new Error('save failed');
+    const res = await fetch('/api/turnos');
+    const data = await res.json();
+    turnos = data.turnos;
+    renderizarTurnos();
   } catch (err) {
-    alert('Error al guardar');
-    console.error(err);
+    console.error('Error al cargar turnos:', err);
+    alert('Error al cargar los turnos');
   }
+}
+
+function renderizarTurnos() {
+  const container = document.getElementById('turnos-container');
+  container.innerHTML = '';
+
+  if (turnos.length === 0) {
+    container.innerHTML = '<p class="no-data">No hay turnos disponibles. El administrador debe importar un CSV.</p>';
+    return;
+  }
+
+  turnos.forEach(turno => {
+    const card = document.createElement('div');
+    card.className = 'turno-card';
+    
+    const fechaObj = new Date(turno.fecha + 'T00:00:00');
+    const fechaFormateada = fechaObj.toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+
+    card.innerHTML = `
+      <div class="turno-header">
+        <h3>📅 ${turno.dia} ${fechaFormateada}</h3>
+        <div class="turno-info">
+          <span>⏰ ${turno.hora.substring(0, 5)}</span>
+          <span>🏫 ${turno.sala}</span>
+        </div>
+      </div>
+      <div class="turnopuestos">
+        ${crearPuesto('Titular', turno.titular_id, turno.titular, turno.titular_disponible)}
+        ${crearPuesto('Auxiliar 1', turno.auxiliar_1_id, turno.auxiliar_1, turno.aux1_disponible)}
+        ${crearPuesto('Auxiliar 2', turno.auxiliar_2_id, turno.auxiliar_2, turno.aux2_disponible)}
+        ${crearPuesto('Auxiliar 3', turno.auxiliar_3_id, turno.auxiliar_3, turno.aux3_disponible)}
+      </div>
+    `;
+    
+    container.appendChild(card);
+  });
+
+  // Agregar event listeners
+  document.querySelectorAll('.puesto-btn.disponible').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const asignacionId = e.target.dataset.id;
+      await asignarPuesto(asignacionId);
+    });
+  });
+
+  document.querySelectorAll('.puesto-btn.ocupado').forEach(btn => {
+    if (isAdmin) {
+      btn.addEventListener('click', async (e) => {
+        const asignacionId = e.target.dataset.id;
+        if (confirm('¿Desasignar este puesto?')) {
+          await desasignarPuesto(asignacionId);
+        }
+      });
+    }
+  });
+}
+
+function crearPuesto(nombre, id, valor, disponible) {
+  let clase = 'disponible';
+  let texto = '✋ Anotarme';
+  let clickable = true;
+
+  if (!disponible) {
+    clase = 'no-disponible';
+    texto = '🚫 No disponible';
+    clickable = false;
+  } else if (valor) {
+    clase = 'ocupado';
+    texto = `✅ ${valor}`;
+    clickable = isAdmin;
+  }
+
+  return `
+    <div class="puesto">
+      <div class="puesto-nombre">${nombre}</div>
+      <button class="puesto-btn ${clase}" 
+              data-id="${id}" 
+              ${!clickable ? 'disabled' : ''}>
+        ${texto}
+      </button>
+    </div>
+  `;
+}
+
+async function asignarPuesto(asignacionId) {
+  if (!userName) {
+    alert('Error: No se encontró tu nombre de usuario');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/asignar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asignacion_id: asignacionId, nombre_usuario: userName })
+    });
+
+    const data = await res.json();
+    
+    if (res.ok) {
+      alert('✅ ' + data.mensaje);
+      cargarTurnos();
+    } else {
+      alert('❌ ' + data.error);
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    alert('Error al asignarse al puesto');
+  }
+}
+
+async function desasignarPuesto(asignacionId) {
+  try {
+    const res = await fetch('/api/desasignar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asignacion_id: asignacionId, is_admin: isAdmin })
+    });
+
+    const data = await res.json();
+    
+    if (res.ok) {
+      alert('✅ ' + data.mensaje);
+      cargarTurnos();
+    } else {
+      alert('❌ ' + data.error);
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    alert('Error al desasignar');
+  }
+}
+
+// Importar CSV
+document.getElementById('btnImportar').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (event) => {
+    const csvData = event.target.result;
+    
+    try {
+      const res = await fetch('/api/importar-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv_data: csvData, is_admin: isAdmin })
+      });
+
+      const data = await res.json();
+      
+      if (res.ok) {
+        alert('✅ ' + data.mensaje);
+        cargarTurnos();
+      } else {
+        alert('❌ ' + data.error);
+      }
+    } catch (err) {
+      console.error('Error:', err);
+      alert('Error al importar CSV');
+    }
+  };
+  
+  reader.readAsText(file, 'UTF-8');
 });
 
-document.getElementById('btnDownload').addEventListener('click', () => {
-  const rows = [...document.querySelectorAll('table tr')].map(tr => [...tr.children].map(td => `"${td.textContent.replace(/"/g,'""')}"`).join(','));
-  const csv = rows.join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = 'escala.csv';
-  a.click();
+// Exportar CSV
+document.getElementById('btnExportar').addEventListener('click', () => {
+  window.location.href = '/api/exportar-csv';
 });
 
-fetchTable();
+// Cerrar sesión
+document.getElementById('btnLogout').addEventListener('click', () => {
+  localStorage.clear();
+  window.location.href = '/';
+});
 
+// Cargar turnos al inicio
+cargarTurnos();
