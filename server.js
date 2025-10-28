@@ -32,6 +32,27 @@ app.get('/api/turnos', async (req, res) => {
   }
 });
 
+// API: Obtener cantidad de asignaciones del usuario
+app.get('/api/mis-asignaciones', async (req, res) => {
+  try {
+    const { usuario } = req.query;
+    
+    if (!usuario) {
+      return res.status(400).json({ error: 'Usuario requerido' });
+    }
+
+    const { rows } = await pool.query(
+      'SELECT COUNT(*) as total FROM asignaciones WHERE nombre_usuario = $1',
+      [usuario]
+    );
+
+    res.json({ total: parseInt(rows[0].total) });
+  } catch (err) {
+    console.error('Error al contar asignaciones:', err);
+    res.status(500).json({ error: 'Error al consultar asignaciones' });
+  }
+});
+
 // API: Asignar usuario a un puesto
 app.post('/api/asignar', async (req, res) => {
   try {
