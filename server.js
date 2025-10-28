@@ -93,6 +93,85 @@ app.post('/api/desasignar', async (req, res) => {
   }
 });
 
+// API: Asignar múltiples puestos en lote
+app.post('/api/asignar-lote', async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { asignaciones, nombre_usuario } = req.body;
+    
+    if (!Array.isArray(asignaciones) || asignaciones.length === 0) {
+      return res.status(400).json({ error: 'Debe enviar al menos una asignación' });
+    }
+
+    if (!nombre_usuario) {
+      return res.status(400).json({ error: 'Nombre de usuario requerido' });
+    }
+
+    await client.query('BEGIN');
+
+    let exitosas = 0;
+    let errores = 0;
+    let mensajesError = [];
+
+    for (const asignacion_id of asignaciones) {
+      try {
+        // Verificar que el puesto está disponible y no ocupado
+        const { rows: [asignacion] } = await client.query(
+          'SELECT * FROM asignaciones WHERE id = $1',
+          [asignacion_id]
+        );
+
+        if (!asignacion) {
+          mensajesError.push(`Asignación ${asignacion_id}: no encontrada`);
+          errores++;
+          continue;
+        }
+
+        if (!asignacion.disponible) {
+          mensajesError.push(`Asignación ${asignacion_id}: no disponible`);
+          errores++;
+          continue;
+        }
+
+        if (asignacion.nombre_usuario) {
+          mensajesError.push(`Asignación ${asignacion_id}: ya ocupada`);
+          errores++;
+          continue;
+        }
+
+        // Asignar usuario
+        await client.query(
+          'UPDATE asignaciones SET nombre_usuario = $1, fecha_asignacion = NOW() WHERE id = $2',
+          [nombre_usuario, asignacion_id]
+        );
+
+        exitosas++;
+      } catch (err) {
+        console.error(`Error en asignación ${asignacion_id}:`, err);
+        errores++;
+        mensajesError.push(`Asignación ${asignacion_id}: ${err.message}`);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    let mensaje = `✅ ${exitosas} turnos asignados correctamente`;
+    if (errores > 0) {
+      mensaje += `\n⚠️ ${errores} errores:\n${mensajesError.join('\n')}`;
+    }
+
+    res.json({ ok: true, mensaje, exitosas, errores });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error al asignar en lote:', err);
+    res.status(500).json({ error: 'Error al guardar asignaciones' });
+  } finally {
+    client.release();
+  }
+});
+
 // API: Limpiar toda la base de datos (SOLO PARA ADMIN - USAR CON CUIDADO)
 app.post('/api/limpiar-todo', async (req, res) => {
   try {
