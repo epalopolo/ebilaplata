@@ -18,15 +18,20 @@ const pool = new Pool({
 // Serve static frontend
 app.use('/', express.static(path.join(__dirname, 'public')));
 
-// Agregar esto temporalmente a server.js
+// API: Inicializar base de datos (USAR SOLO UNA VEZ)
 app.get('/api/init-database-once', async (req, res) => {
+  const client = await pool.connect();
+  
   try {
-    // Ejecutar init-db.sql
-    await pool.query(`
-      DROP TABLE IF EXISTS asignaciones CASCADE;
-      DROP TABLE IF EXISTS turnos CASCADE;
-      DROP VIEW IF EXISTS vista_turnos CASCADE;
+    await client.query('BEGIN');
 
+    // 1. Eliminar tablas y vistas existentes
+    await client.query('DROP VIEW IF EXISTS vista_turnos CASCADE');
+    await client.query('DROP TABLE IF EXISTS asignaciones CASCADE');
+    await client.query('DROP TABLE IF EXISTS turnos CASCADE');
+
+    // 2. Crear tabla turnos
+    await client.query(`
       CREATE TABLE turnos (
         id SERIAL PRIMARY KEY,
         dia TEXT NOT NULL,
@@ -34,8 +39,11 @@ app.get('/api/init-database-once', async (req, res) => {
         hora TIME NOT NULL,
         sala TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT NOW()
-      );
+      )
+    `);
 
+    // 3. Crear tabla asignaciones
+    await client.query(`
       CREATE TABLE asignaciones (
         id SERIAL PRIMARY KEY,
         turno_id INTEGER REFERENCES turnos(id) ON DELETE CASCADE,
@@ -43,14 +51,16 @@ app.get('/api/init-database-once', async (req, res) => {
         nombre_usuario TEXT,
         disponible BOOLEAN DEFAULT TRUE,
         fecha_asignacion TIMESTAMP DEFAULT NOW()
-      );
-
-      CREATE INDEX idx_turnos_fecha ON turnos(fecha);
-      CREATE INDEX idx_turnos_sala ON turnos(sala);
-      CREATE INDEX idx_asignaciones_turno ON asignaciones(turno_id);
+      )
     `);
 
-    await pool.query(`
+    // 4. Crear índices
+    await client.query('CREATE INDEX idx_turnos_fecha ON turnos(fecha)');
+    await client.query('CREATE INDEX idx_turnos_sala ON turnos(sala)');
+    await client.query('CREATE INDEX idx_asignaciones_turno ON asignaciones(turno_id)');
+
+    // 5. Crear vista
+    await client.query(`
       CREATE VIEW vista_turnos AS
       SELECT 
         t.id,
@@ -58,31 +68,42 @@ app.get('/api/init-database-once', async (req, res) => {
         t.fecha,
         t.hora,
         t.sala,
-        MAX(CASE WHEN a.puesto = 'Titular' THEN a.id END) as titular_id,
-        MAX(CASE WHEN a.puesto = 'Titular' THEN COALESCE(a.nombre_usuario, '') END) as titular,
-        MAX(CASE WHEN a.puesto = 'Titular' THEN a.disponible END) as titular_disponible,
-        MAX(CASE WHEN a.puesto = 'Auxiliar 1' THEN a.id END) as auxiliar_1_id,
-        MAX(CASE WHEN a.puesto = 'Auxiliar 1' THEN COALESCE(a.nombre_usuario, '') END) as auxiliar_1,
-        MAX(CASE WHEN a.puesto = 'Auxiliar 1' THEN a.disponible END) as aux1_disponible,
-        MAX(CASE WHEN a.puesto = 'Auxiliar 2' THEN a.id END) as auxiliar_2_id,
-        MAX(CASE WHEN a.puesto = 'Auxiliar 2' THEN COALESCE(a.nombre_usuario, '') END) as auxiliar_2,
-        MAX(CASE WHEN a.puesto = 'Auxiliar 2' THEN a.disponible END) as aux2_disponible,
-        MAX(CASE WHEN a.puesto = 'Auxiliar 3' THEN a.id END) as auxiliar_3_id,
-        MAX(CASE WHEN a.puesto = 'Auxiliar 3' THEN COALESCE(a.nombre_usuario, '') END) as auxiliar_3,
-        MAX(CASE WHEN a.puesto = 'Auxiliar 3' THEN a.disponible END) as aux3_disponible
+        MAX(CASE WHEN a.puesto = 'Titular' THEN a.id ELSE NULL END) as titular_id,
+        MAX(CASE WHEN a.puesto = 'Titular' THEN COALESCE(a.nombre_usuario, '') ELSE '' END) as titular,
+        BOOL_OR(CASE WHEN a.puesto = 'Titular' THEN a.disponible ELSE NULL END) as titular_disponible,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 1' THEN a.id ELSE NULL END) as auxiliar_1_id,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 1' THEN COALESCE(a.nombre_usuario, '') ELSE '' END) as auxiliar_1,
+        BOOL_OR(CASE WHEN a.puesto = 'Auxiliar 1' THEN a.disponible ELSE NULL END) as aux1_disponible,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 2' THEN a.id ELSE NULL END) as auxiliar_2_id,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 2' THEN COALESCE(a.nombre_usuario, '') ELSE '' END) as auxiliar_2,
+        BOOL_OR(CASE WHEN a.puesto = 'Auxiliar 2' THEN a.disponible ELSE NULL END) as aux2_disponible,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 3' THEN a.id ELSE NULL END) as auxiliar_3_id,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 3' THEN COALESCE(a.nombre_usuario, '') ELSE '' END) as auxiliar_3,
+        BOOL_OR(CASE WHEN a.puesto = 'Auxiliar 3' THEN a.disponible ELSE NULL END) as aux3_disponible
       FROM turnos t
       LEFT JOIN asignaciones a ON t.id = a.turno_id
       GROUP BY t.id, t.dia, t.fecha, t.hora, t.sala
       ORDER BY t.fecha, t.hora, t.sala
     `);
 
-    res.json({ ok: true, mensaje: 'Base de datos inicializada correctamente' });
+    await client.query('COMMIT');
+
+    res.json({ 
+      ok: true, 
+      mensaje: '✅ Base de datos inicializada correctamente. Ahora puedes importar tu CSV.' 
+    });
+
   } catch (err) {
-    console.error('Error:', err);
-    res.status(500).json({ error: err.message });
+    await client.query('ROLLBACK');
+    console.error('Error al inicializar base de datos:', err);
+    res.status(500).json({ 
+      error: 'Error al inicializar base de datos', 
+      detalle: err.message 
+    });
+  } finally {
+    client.release();
   }
 });
-
 // API: Obtener todos los turnos con asignaciones
 app.get('/api/turnos', async (req, res) => {
   try {
