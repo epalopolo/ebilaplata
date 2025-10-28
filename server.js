@@ -93,8 +93,10 @@ app.post('/api/desasignar', async (req, res) => {
   }
 });
 
-// API: Importar CSV (solo admin)
+// API: Importar CSV (solo admin) - VERSIÓN CORREGIDA
 app.post('/api/importar-csv', async (req, res) => {
+  const client = await pool.connect();
+  
   try {
     const { csv_data, is_admin } = req.body;
     
@@ -102,70 +104,131 @@ app.post('/api/importar-csv', async (req, res) => {
       return res.status(403).json({ error: 'Solo administradores pueden importar' });
     }
 
+    if (!csv_data) {
+      return res.status(400).json({ error: 'No se recibió el archivo CSV' });
+    }
+
+    await client.query('BEGIN');
+
     // Parsear CSV
     const lines = csv_data.trim().split('\n');
-    const headers = lines[0].split(';');
     
+    if (lines.length < 2) {
+      throw new Error('El CSV está vacío o no tiene datos');
+    }
+
     let importados = 0;
     let actualizados = 0;
+    let errores = 0;
 
+    // Procesar desde la línea 1 (saltar header)
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(';');
-      if (values.length < 8) continue;
+      try {
+        // Limpiar la línea de caracteres extraños
+        const linea = lines[i].replace(/\r/g, '').trim();
+        if (!linea) continue;
 
-      const [dia, fechaStr, hora, sala, titular, aux1, aux2, aux3] = values;
-      
-      // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD
-      const [day, month, year] = fechaStr.split('/');
-      const fecha = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-
-      // Verificar si ya existe este turno
-      const { rows: [existente] } = await pool.query(
-        'SELECT id FROM turnos WHERE dia = $1 AND fecha = $2 AND hora = $3 AND sala = $4',
-        [dia, fecha, hora]
-      );
-
-      let turno_id;
-      
-      if (existente) {
-        turno_id = existente.id;
-        actualizados++;
-      } else {
-        // Insertar nuevo turno
-        const { rows: [nuevo] } = await pool.query(
-          'INSERT INTO turnos (dia, fecha, hora, sala) VALUES ($1, $2, $3, $4) RETURNING id',
-          [dia, fecha, hora, sala]
-        );
-        turno_id = nuevo.id;
-        importados++;
-
-        // Insertar asignaciones
-        const puestos = [
-          { nombre: 'Titular', valor: titular },
-          { nombre: 'Auxiliar 1', valor: aux1 },
-          { nombre: 'Auxiliar 2', valor: aux2 },
-          { nombre: 'Auxiliar 3', valor: aux3 }
-        ];
-
-        for (const puesto of puestos) {
-          const disponible = puesto.valor !== 'No disponible';
-          const nombre = disponible && puesto.valor ? puesto.valor : null;
-          
-          await pool.query(
-            'INSERT INTO asignaciones (turno_id, puesto, nombre_usuario, disponible) VALUES ($1, $2, $3, $4)',
-            [turno_id, puesto.nombre, nombre, disponible]
-          );
+        const values = linea.split(';');
+        
+        if (values.length < 8) {
+          console.log(`Línea ${i} ignorada: formato incorrecto`);
+          errores++;
+          continue;
         }
+
+        let [dia, fechaStr, hora, sala, titular, aux1, aux2, aux3] = values;
+        
+        // Limpiar valores
+        dia = dia.trim();
+        fechaStr = fechaStr.trim();
+        hora = hora.trim();
+        sala = sala.trim();
+        titular = titular ? titular.trim() : '';
+        aux1 = aux1 ? aux1.trim() : '';
+        aux2 = aux2 ? aux2.trim() : '';
+        aux3 = aux3 ? aux3.trim() : '';
+
+        // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD
+        const partesFecha = fechaStr.split('/');
+        if (partesFecha.length !== 3) {
+          console.log(`Línea ${i}: fecha inválida ${fechaStr}`);
+          errores++;
+          continue;
+        }
+        
+        const [day, month, year] = partesFecha;
+        const fecha = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+
+        // Validar hora (agregar segundos si no los tiene)
+        if (!hora.includes(':')) {
+          console.log(`Línea ${i}: hora inválida ${hora}`);
+          errores++;
+          continue;
+        }
+        
+        const horaCompleta = hora.length === 5 ? `${hora}:00` : hora;
+
+        // Verificar si ya existe este turno
+        const { rows: existentes } = await client.query(
+          'SELECT id FROM turnos WHERE dia = $1 AND fecha = $2 AND hora = $3 AND sala = $4',
+          [dia, fecha, horaCompleta, sala]
+        );
+
+        let turno_id;
+        
+        if (existentes.length > 0) {
+          // Ya existe, actualizar
+          turno_id = existentes[0].id;
+          actualizados++;
+        } else {
+          // Insertar nuevo turno
+          const { rows: [nuevo] } = await client.query(
+            'INSERT INTO turnos (dia, fecha, hora, sala) VALUES ($1, $2, $3, $4) RETURNING id',
+            [dia, fecha, horaCompleta, sala]
+          );
+          turno_id = nuevo.id;
+          importados++;
+
+          // Insertar asignaciones
+          const puestos = [
+            { nombre: 'Titular', valor: titular },
+            { nombre: 'Auxiliar 1', valor: aux1 },
+            { nombre: 'Auxiliar 2', valor: aux2 },
+            { nombre: 'Auxiliar 3', valor: aux3 }
+          ];
+
+          for (const puesto of puestos) {
+            const disponible = puesto.valor !== 'No disponible';
+            const nombre = (disponible && puesto.valor) ? puesto.valor : null;
+            
+            await client.query(
+              'INSERT INTO asignaciones (turno_id, puesto, nombre_usuario, disponible) VALUES ($1, $2, $3, $4)',
+              [turno_id, puesto.nombre, nombre, disponible]
+            );
+          }
+        }
+      } catch (lineError) {
+        console.error(`Error en línea ${i}:`, lineError);
+        errores++;
       }
     }
 
+    await client.query('COMMIT');
+
     res.json({ 
       ok: true, 
-      mensaje: `Importación completada. ${importados} nuevos turnos, ${actualizados} ya existían.` 
+      mensaje: `✅ Importación completada.\n${importados} turnos nuevos\n${actualizados} turnos ya existían\n${errores > 0 ? errores + ' errores ignorados' : ''}` 
     });
+
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error al importar CSV:', err);
-    res.status(500).json({ error: 'Error al importar: ' + err.message });
+    res.status(500).json({ 
+      error: 'Error al importar CSV', 
+      detalle: err.message 
+    });
+  } finally {
+    client.release();
   }
 });
 
