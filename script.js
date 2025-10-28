@@ -1,118 +1,149 @@
-const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbycCP-7ac017G03vWNGdpRVmmLnJBgGGv-OZoqpGgQaR6dAiNPCaqHLkoGQKNNzrl8Z/exec";
-
-// script.js
+// ===== CONFIGURACIÓN =====
+const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbycCP-7ac017G03vWNGdpRVmmLnJBgGGv-OZoqpGgQaR6dAiNPCaqHLkoGQKNNzrl8Z/exec"; // <-- pegá aquí tu URL de Google Apps Script
 let userName = "";
-let userInitial = "";
 let isAdmin = false;
-let minEdits = 3;
-let editCount = 0;
+let editedCells = new Set();
 
-// ====== INICIO DE SESIÓN DE USUARIO ======
-function loginUser() {
-  const nameInput = document.getElementById("name").value.trim();
-  const passInput = document.getElementById("password")?.value.trim();
-
-  if (nameInput.toLowerCase() === "admin" && passInput === "admin123") {
-    localStorage.setItem("isAdmin", "true");
-    window.location.href = "tabla.html";
-    return;
-  }
-
-  if (!nameInput) {
-    alert("Por favor ingresá tu nombre y apellido.");
-    return;
-  }
-
-  localStorage.setItem("userName", nameInput);
-  localStorage.setItem("isAdmin", "false");
-  window.location.href = "tabla.html";
-}
-
-// ====== CARGA DE LA TABLA ======
+// ===== CARGA INICIAL =====
 async function loadTable() {
   userName = localStorage.getItem("userName") || "";
   isAdmin = localStorage.getItem("isAdmin") === "true";
+
   if (!userName && !isAdmin) {
     window.location.href = "index.html";
     return;
   }
 
-  const tableContainer = document.getElementById("table-container");
+  document.getElementById("user-info").textContent = isAdmin
+    ? "Administrador"
+    : `Usuario: ${userName}`;
+
   const saveButton = document.getElementById("save-button");
   const downloadButton = document.getElementById("download-button");
+  if (isAdmin) downloadButton.style.display = "block";
 
-  if (isAdmin) {
-    downloadButton.style.display = "block";
+  try {
+    const response = await fetch(SHEETS_API_URL + "?t=" + Date.now());
+    const rows = await response.json();
+    renderTable(rows);
+  } catch (err) {
+    console.error("Error cargando la tabla:", err);
+    alert("Error al cargar la tabla. Verificá la conexión o la URL del Script.");
   }
+}
 
-  // Cargar el CSV generado del Excel (convertido y subido al repo)
-  const response = await fetch("ebi_escala.csv");
-  const csvText = await response.text();
-  const rows = csvText.split("\n").map(r => r.split(","));
+// ===== RENDERIZADO DE TABLA =====
+function renderTable(rows) {
+  const tableContainer = document.getElementById("table-container");
+  tableContainer.innerHTML = "";
 
   const table = document.createElement("table");
-  table.classList.add("styled-table");
+  const thead = document.createElement("thead");
+  const tbody = document.createElement("tbody");
 
-  rows.forEach((row, rowIndex) => {
+  // Cabecera
+  const headerRow = document.createElement("tr");
+  rows[0].forEach(headerText => {
+    const th = document.createElement("th");
+    th.textContent = headerText;
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+
+  // Cuerpo
+  for (let i = 1; i < rows.length; i++) {
     const tr = document.createElement("tr");
-    row.forEach((cell, colIndex) => {
-      const td = document.createElement(rowIndex === 0 ? "th" : "td");
-      td.textContent = cell.trim();
+    rows[i].forEach((cellText, j) => {
+      const td = document.createElement("td");
+      td.textContent = cellText;
 
-      // Solo permite editar celdas vacías (que no sean encabezados)
-      if (rowIndex !== 0 && cell.trim() === "") {
+      // si la celda está vacía y no es admin, se puede editar
+      if (!cellText && !isAdmin) {
         td.classList.add("editable");
         td.addEventListener("click", () => handleCellClick(td));
       }
+
+      // si la celda tiene texto, se bloquea
+      if (cellText && !isAdmin) {
+        td.classList.add("locked");
+      }
+
       tr.appendChild(td);
     });
-    table.appendChild(tr);
-  });
+    tbody.appendChild(tr);
+  }
 
+  table.appendChild(thead);
+  table.appendChild(tbody);
   tableContainer.appendChild(table);
 }
 
-// ====== EDICIÓN DE CELDAS ======
+// ===== EDICIÓN DE CELDAS =====
 function handleCellClick(td) {
-  if (td.textContent.trim() !== "") return; // Bloquear si ya está ocupada
-
-  td.textContent = `${userName.split(" ")[0]} ${userName.split(" ")[1]?.[0] || ""}.`;
+  if (td.textContent.trim() !== "") return;
+  td.textContent = `${userName.split(" ")[0]} ${userName.split(" ")[1]?.charAt(0) || ""}.`;
   td.classList.remove("editable");
-  td.classList.add("filled");
-  editCount++;
+  td.classList.add("locked");
+  editedCells.add(td);
 
-  if (editCount >= minEdits) {
-    document.getElementById("save-button").disabled = false;
+  // activar botón si hay al menos 3 ediciones
+  const saveButton = document.getElementById("save-button");
+  if (editedCells.size >= 3) {
+    saveButton.disabled = false;
   }
 }
 
-// ====== GUARDAR CAMBIOS ======
-function saveChanges() {
+// ===== GUARDAR CAMBIOS =====
+async function saveChanges() {
   const table = document.querySelector("table");
   const rows = [...table.querySelectorAll("tr")].map(tr =>
     [...tr.querySelectorAll("th,td")].map(td => td.textContent)
   );
 
-  // Guardar localmente (en localStorage o n8n)
-  localStorage.setItem("savedTable", JSON.stringify(rows));
-  alert("Cambios guardados. En un entorno seguro, se enviarían al servidor.");
+  try {
+    const res = await fetch(SHEETS_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: rows }),
+    });
 
-  document.getElementById("save-button").disabled = true;
+    if (res.ok) {
+      alert("Cambios guardados correctamente en Google Sheets.");
+      editedCells.clear();
+      document.getElementById("save-button").disabled = true;
+    } else {
+      alert("Error al guardar en Google Sheets.");
+    }
+  } catch (err) {
+    console.error("Error al guardar:", err);
+    alert("No se pudo guardar. Verificá conexión o permisos.");
+  }
 }
 
-// ====== DESCARGAR CSV (solo admin) ======
+// ===== DESCARGAR CSV (SOLO ADMIN) =====
 function downloadCSV() {
+  if (!isAdmin) return;
   const table = document.querySelector("table");
   const rows = [...table.querySelectorAll("tr")].map(tr =>
-    [...tr.querySelectorAll("th,td")].map(td => td.textContent)
+    [...tr.querySelectorAll("th,td")]
+      .map(td => `"${td.textContent.replace(/"/g, '""')}"`)
+      .join(",")
   );
-
-  const csvContent = rows.map(r => r.join(",")).join("\n");
+  const csvContent = rows.join("\n");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-
   const link = document.createElement("a");
-  link.href = url;
-  link.download = "ebi_escala_actualizada.csv";
+  link.href = URL.createObjectURL(blob);
+  link.download = "escala_actualizada.csv";
   link.click();
 }
+
+// ===== EVENTOS =====
+document.addEventListener("DOMContentLoaded", () => {
+  const saveButton = document.getElementById("save-button");
+  const downloadButton = document.getElementById("download-button");
+
+  if (saveButton) saveButton.addEventListener("click", saveChanges);
+  if (downloadButton) downloadButton.addEventListener("click", downloadCSV);
+
+  loadTable();
+});
