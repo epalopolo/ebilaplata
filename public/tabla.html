@@ -1,17 +1,28 @@
 <!doctype html>
-<html>
+<html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Escala EBI - Tabla</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escala EBI - Turnos</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="header">
     <span id="user-info"></span>
-    <button id="btnSave" disabled>Guardar</button>
-    <button id="btnDownload" style="display:none">Descargar CSV</button>
+    <div class="header-buttons">
+      <div class="admin-controls" id="admin-controls">
+        <div class="file-input-wrapper">
+          <input type="file" id="btnImportar" accept=".csv">
+          <label for="btnImportar">📤 Importar CSV</label>
+        </div>
+        <button id="btnExportar">📥 Exportar CSV</button>
+      </div>
+      <button id="btnLogout">🚪 Salir</button>
+    </div>
   </div>
-  <div id="table-container"></div>
+  
+  <div id="turnos-container"></div>
+  
   <script src="script-frontend.js"></script>
 </body>
 </html>
