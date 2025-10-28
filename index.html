@@ -1,21 +1,51 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Escala EBI - Ingreso</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="login-container">
     <h1>Escala EBI</h1>
     <p>Ingresá tu nombre y apellido para continuar</p>
 
-    <input type="text" id="name" placeholder="Nombre y Apellido">
-    <input type="password" id="password" placeholder="Contraseña (solo admin)">
-    <button onclick="loginUser()">Entrar</button>
+    <input type="text" id="name" placeholder="Nombre y Apellido" />
+    <input type="password" id="password" placeholder="Contraseña (solo admin)" />
+    <button id="login-button">Entrar</button>
   </div>
 
-  <script src="script.js"></script>
+  <script>
+    // Función de login
+    function loginUser() {
+      const name = document.getElementById("name").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if (!name && !password) {
+        alert("Ingresá tu nombre y apellido o la contraseña de administrador.");
+        return;
+      }
+
+      // Validar si es admin
+      if (password === "admin123") {
+        localStorage.setItem("isAdmin", "true");
+        localStorage.setItem("userName", "Administrador");
+      } else {
+        if (!name) {
+          alert("Ingresá tu nombre y apellido.");
+          return;
+        }
+        localStorage.setItem("isAdmin", "false");
+        localStorage.setItem("userName", name);
+      }
+
+      window.location.href = "tabla.html";
+    }
+
+    // Escuchar el botón
+    document.getElementById("login-button").addEventListener("click", loginUser);
+  </script>
 </body>
 </html>
+
