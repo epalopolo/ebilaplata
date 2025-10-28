@@ -18,6 +18,71 @@ const pool = new Pool({
 // Serve static frontend
 app.use('/', express.static(path.join(__dirname, 'public')));
 
+// Agregar esto temporalmente a server.js
+app.get('/api/init-database-once', async (req, res) => {
+  try {
+    // Ejecutar init-db.sql
+    await pool.query(`
+      DROP TABLE IF EXISTS asignaciones CASCADE;
+      DROP TABLE IF EXISTS turnos CASCADE;
+      DROP VIEW IF EXISTS vista_turnos CASCADE;
+
+      CREATE TABLE turnos (
+        id SERIAL PRIMARY KEY,
+        dia TEXT NOT NULL,
+        fecha DATE NOT NULL,
+        hora TIME NOT NULL,
+        sala TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE asignaciones (
+        id SERIAL PRIMARY KEY,
+        turno_id INTEGER REFERENCES turnos(id) ON DELETE CASCADE,
+        puesto TEXT NOT NULL,
+        nombre_usuario TEXT,
+        disponible BOOLEAN DEFAULT TRUE,
+        fecha_asignacion TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX idx_turnos_fecha ON turnos(fecha);
+      CREATE INDEX idx_turnos_sala ON turnos(sala);
+      CREATE INDEX idx_asignaciones_turno ON asignaciones(turno_id);
+    `);
+
+    await pool.query(`
+      CREATE VIEW vista_turnos AS
+      SELECT 
+        t.id,
+        t.dia,
+        t.fecha,
+        t.hora,
+        t.sala,
+        MAX(CASE WHEN a.puesto = 'Titular' THEN a.id END) as titular_id,
+        MAX(CASE WHEN a.puesto = 'Titular' THEN COALESCE(a.nombre_usuario, '') END) as titular,
+        MAX(CASE WHEN a.puesto = 'Titular' THEN a.disponible END) as titular_disponible,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 1' THEN a.id END) as auxiliar_1_id,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 1' THEN COALESCE(a.nombre_usuario, '') END) as auxiliar_1,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 1' THEN a.disponible END) as aux1_disponible,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 2' THEN a.id END) as auxiliar_2_id,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 2' THEN COALESCE(a.nombre_usuario, '') END) as auxiliar_2,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 2' THEN a.disponible END) as aux2_disponible,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 3' THEN a.id END) as auxiliar_3_id,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 3' THEN COALESCE(a.nombre_usuario, '') END) as auxiliar_3,
+        MAX(CASE WHEN a.puesto = 'Auxiliar 3' THEN a.disponible END) as aux3_disponible
+      FROM turnos t
+      LEFT JOIN asignaciones a ON t.id = a.turno_id
+      GROUP BY t.id, t.dia, t.fecha, t.hora, t.sala
+      ORDER BY t.fecha, t.hora, t.sala
+    `);
+
+    res.json({ ok: true, mensaje: 'Base de datos inicializada correctamente' });
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // API: Obtener todos los turnos con asignaciones
 app.get('/api/turnos', async (req, res) => {
   try {
