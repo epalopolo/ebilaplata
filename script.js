@@ -1,10 +1,10 @@
 // ===== CONFIGURACIÓN =====
-const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbycCP-7ac017G03vWNGdpRVmmLnJBgGGv-OZoqpGgQaR6dAiNPCaqHLkoGQKNNzrl8Z/exec"; // <-- pegá aquí tu URL de Google Apps Script
+const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbycCP-7ac017G03vWNGdpRVmmLnJBgGGv-OZoqpGgQaR6dAiNPCaqHLkoGQKNNzrl8Z/exec"; // <-- tu URL de Apps Script
 let userName = "";
 let isAdmin = false;
 let editedCells = new Set();
 
-// ===== CARGA INICIAL =====
+// ===== CARGA DE TABLA =====
 async function loadTable() {
   userName = localStorage.getItem("userName") || "";
   isAdmin = localStorage.getItem("isAdmin") === "true";
@@ -28,11 +28,11 @@ async function loadTable() {
     renderTable(rows);
   } catch (err) {
     console.error("Error cargando la tabla:", err);
-    alert("Error al cargar la tabla. Verificá la conexión o la URL del Script.");
+    alert("Error al cargar la tabla. Revisá la conexión o la URL del Script.");
   }
 }
 
-// ===== RENDERIZADO DE TABLA =====
+// ===== RENDERIZAR TABLA =====
 function renderTable(rows) {
   const tableContainer = document.getElementById("table-container");
   tableContainer.innerHTML = "";
@@ -41,7 +41,6 @@ function renderTable(rows) {
   const thead = document.createElement("thead");
   const tbody = document.createElement("tbody");
 
-  // Cabecera
   const headerRow = document.createElement("tr");
   rows[0].forEach(headerText => {
     const th = document.createElement("th");
@@ -50,20 +49,17 @@ function renderTable(rows) {
   });
   thead.appendChild(headerRow);
 
-  // Cuerpo
   for (let i = 1; i < rows.length; i++) {
     const tr = document.createElement("tr");
-    rows[i].forEach((cellText, j) => {
+    rows[i].forEach(cellText => {
       const td = document.createElement("td");
       td.textContent = cellText;
 
-      // si la celda está vacía y no es admin, se puede editar
       if (!cellText && !isAdmin) {
         td.classList.add("editable");
         td.addEventListener("click", () => handleCellClick(td));
       }
 
-      // si la celda tiene texto, se bloquea
       if (cellText && !isAdmin) {
         td.classList.add("locked");
       }
@@ -78,7 +74,7 @@ function renderTable(rows) {
   tableContainer.appendChild(table);
 }
 
-// ===== EDICIÓN DE CELDAS =====
+// ===== EDICIÓN =====
 function handleCellClick(td) {
   if (td.textContent.trim() !== "") return;
   td.textContent = `${userName.split(" ")[0]} ${userName.split(" ")[1]?.charAt(0) || ""}.`;
@@ -86,14 +82,11 @@ function handleCellClick(td) {
   td.classList.add("locked");
   editedCells.add(td);
 
-  // activar botón si hay al menos 3 ediciones
   const saveButton = document.getElementById("save-button");
-  if (editedCells.size >= 3) {
-    saveButton.disabled = false;
-  }
+  if (editedCells.size >= 3) saveButton.disabled = false;
 }
 
-// ===== GUARDAR CAMBIOS =====
+// ===== GUARDAR =====
 async function saveChanges() {
   const table = document.querySelector("table");
   const rows = [...table.querySelectorAll("tr")].map(tr =>
@@ -120,7 +113,7 @@ async function saveChanges() {
   }
 }
 
-// ===== DESCARGAR CSV (SOLO ADMIN) =====
+// ===== DESCARGAR CSV =====
 function downloadCSV() {
   if (!isAdmin) return;
   const table = document.querySelector("table");
@@ -145,5 +138,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (saveButton) saveButton.addEventListener("click", saveChanges);
   if (downloadButton) downloadButton.addEventListener("click", downloadCSV);
 
-  loadTable();
+  // Cargar tabla solo si estamos en tabla.html
+  if (window.location.pathname.endsWith("tabla.html")) {
+    loadTable();
+  }
 });
