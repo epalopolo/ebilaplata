@@ -18,17 +18,6 @@ const pool = new Pool({
 // Serve static frontend
 app.use('/', express.static(path.join(__dirname, 'public')));
 
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Error al inicializar base de datos:', err);
-    res.status(500).json({ 
-      error: 'Error al inicializar base de datos', 
-      detalle: err.message 
-    });
-  } finally {
-    client.release();
-  }
-});
 // API: Obtener todos los turnos con asignaciones
 app.get('/api/turnos', async (req, res) => {
   try {
