@@ -1,51 +1,30 @@
-<!DOCTYPE html>
-<html lang="es">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Escala EBI - Ingreso</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8">
+  <title>Escala EBI</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="login-container">
+  <div class="login">
     <h1>Escala EBI</h1>
-    <p>Ingresá tu nombre y apellido para continuar</p>
-
-    <input type="text" id="name" placeholder="Nombre y Apellido" />
-    <input type="password" id="password" placeholder="Contraseña (solo admin)" />
-    <button id="login-button">Entrar</button>
+    <input id="name" placeholder="Nombre y apellido">
+    <input id="password" placeholder="Contraseña (admin)" type="password">
+    <button id="btnLogin">Entrar</button>
   </div>
-
   <script>
-    // Función de login
-    function loginUser() {
-      const name = document.getElementById("name").value.trim();
-      const password = document.getElementById("password").value.trim();
-
-      if (!name && !password) {
-        alert("Ingresá tu nombre y apellido o la contraseña de administrador.");
-        return;
-      }
-
-      // Validar si es admin
-      if (password === "admin123") {
-        localStorage.setItem("isAdmin", "true");
-        localStorage.setItem("userName", "Administrador");
+    document.getElementById('btnLogin').addEventListener('click', () => {
+      const name = document.getElementById('name').value.trim();
+      const pwd = document.getElementById('password').value.trim();
+      if (pwd === 'admin123') {
+        localStorage.setItem('isAdmin', 'true');
+        localStorage.setItem('userName', 'Administrador');
       } else {
-        if (!name) {
-          alert("Ingresá tu nombre y apellido.");
-          return;
-        }
-        localStorage.setItem("isAdmin", "false");
-        localStorage.setItem("userName", name);
+        localStorage.setItem('isAdmin', 'false');
+        localStorage.setItem('userName', name);
       }
-
-      window.location.href = "tabla.html";
-    }
-
-    // Escuchar el botón
-    document.getElementById("login-button").addEventListener("click", loginUser);
+      location.href = '/tabla.html';
+    });
   </script>
 </body>
 </html>
-
