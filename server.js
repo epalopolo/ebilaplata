@@ -12,11 +12,11 @@ app.use(bodyParser.json({ limit: '5mb' }));
 // DATABASE_URL in Koyeb will be provided as env var
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // if Koyeb requires SSL config, add: ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false } // Necesario para Koyeb y otros servicios cloud
 });
 
 // Serve static frontend
-app.use('/', express.static(path.join(__dirname, '..', 'frontend')));
+app.use('/', express.static(path.join(__dirname, 'public')));
 
 // API: obtener tabla (devuelve headers + filas)
 app.get('/api/table', async (req, res) => {
