@@ -8,6 +8,33 @@ if (isAdmin) {
   document.getElementById('admin-controls').style.display = 'flex';
 }
 
+// Limpiar base de datos
+document.getElementById('btnLimpiar').addEventListener('click', async () => {
+  if (!confirm('⚠️ ¿SEGURO que quieres eliminar TODOS los turnos?\nEsta acción no se puede deshacer.')) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/limpiar-todo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_admin: isAdmin })
+    });
+
+    const data = await res.json();
+    
+    if (res.ok) {
+      alert('✅ ' + data.mensaje);
+      cargarTurnos();
+    } else {
+      alert('❌ ' + data.error);
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    alert('Error al limpiar');
+  }
+});
+
 // Cargar turnos
 async function cargarTurnos() {
   try {
@@ -34,22 +61,29 @@ function renderizarTurnos() {
     const card = document.createElement('div');
     card.className = 'turno-card';
     
-    const fechaObj = new Date(turno.fecha + 'T00:00:00');
-    const fechaFormateada = fechaObj.toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
-    });
+    // CORRECCIÓN: Parsear fecha correctamente desde PostgreSQL
+    let fechaFormateada = 'Fecha inválida';
+    try {
+      // PostgreSQL devuelve fechas en formato ISO: "2025-11-02T00:00:00.000Z"
+      const fechaISO = turno.fecha.split('T')[0]; // "2025-11-02"
+      const [year, month, day] = fechaISO.split('-');
+      fechaFormateada = `${day}/${month}/${year}`;
+    } catch (e) {
+      console.error('Error al parsear fecha:', turno.fecha, e);
+    }
+
+    // Cortar hora a HH:MM (quitar segundos)
+    const horaCorta = turno.hora ? turno.hora.substring(0, 5) : '00:00';
 
     card.innerHTML = `
       <div class="turno-header">
         <h3>📅 ${turno.dia} ${fechaFormateada}</h3>
         <div class="turno-info">
-          <span>⏰ ${turno.hora.substring(0, 5)}</span>
+          <span>⏰ ${horaCorta}</span>
           <span>🏫 ${turno.sala}</span>
         </div>
       </div>
-      <div class="turnopuestos">
+      <div class="turno-puestos">
         ${crearPuesto('Titular', turno.titular_id, turno.titular, turno.titular_disponible)}
         ${crearPuesto('Auxiliar 1', turno.auxiliar_1_id, turno.auxiliar_1, turno.aux1_disponible)}
         ${crearPuesto('Auxiliar 2', turno.auxiliar_2_id, turno.auxiliar_2, turno.aux2_disponible)}
