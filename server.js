@@ -93,6 +93,25 @@ app.post('/api/desasignar', async (req, res) => {
   }
 });
 
+// API: Limpiar toda la base de datos (SOLO PARA ADMIN - USAR CON CUIDADO)
+app.post('/api/limpiar-todo', async (req, res) => {
+  try {
+    const { is_admin } = req.body;
+    
+    if (!is_admin) {
+      return res.status(403).json({ error: 'Solo administradores' });
+    }
+
+    await pool.query('TRUNCATE TABLE asignaciones CASCADE');
+    await pool.query('TRUNCATE TABLE turnos CASCADE');
+
+    res.json({ ok: true, mensaje: '✅ Base de datos limpiada correctamente' });
+  } catch (err) {
+    console.error('Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // API: Importar CSV (solo admin) - VERSIÓN CORREGIDA
 app.post('/api/importar-csv', async (req, res) => {
   const client = await pool.connect();
