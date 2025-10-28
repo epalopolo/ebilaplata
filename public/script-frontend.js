@@ -1,6 +1,8 @@
 let userName = localStorage.getItem('userName') || '';
 let isAdmin = localStorage.getItem('isAdmin') === 'true';
 let turnos = [];
+let cambiosPendientes = new Set(); // Guardar IDs de asignaciones marcadas temporalmente
+let asignacionesOriginales = new Map(); // Guardar estado original
 
 document.getElementById('user-info').textContent = isAdmin ? '👑 Administrador' : `👤 ${userName}`;
 
@@ -8,40 +10,24 @@ if (isAdmin) {
   document.getElementById('admin-controls').style.display = 'flex';
 }
 
-// Limpiar base de datos
-document.getElementById('btnLimpiar').addEventListener('click', async () => {
-  if (!confirm('⚠️ ¿SEGURO que quieres eliminar TODOS los turnos?\nEsta acción no se puede deshacer.')) {
-    return;
-  }
-
-  try {
-    const res = await fetch('/api/limpiar-todo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_admin: isAdmin })
-    });
-
-    const data = await res.json();
-    
-    if (res.ok) {
-      alert('✅ ' + data.mensaje);
-      cargarTurnos();
-    } else {
-      alert('❌ ' + data.error);
-    }
-  } catch (err) {
-    console.error('Error:', err);
-    alert('Error al limpiar');
-  }
-});
-
 // Cargar turnos
 async function cargarTurnos() {
   try {
     const res = await fetch('/api/turnos');
     const data = await res.json();
     turnos = data.turnos;
+    
+    // Guardar estado original de asignaciones
+    asignacionesOriginales.clear();
+    turnos.forEach(turno => {
+      if (turno.titular_id) asignacionesOriginales.set(turno.titular_id, turno.titular);
+      if (turno.auxiliar_1_id) asignacionesOriginales.set(turno.auxiliar_1_id, turno.auxiliar_1);
+      if (turno.auxiliar_2_id) asignacionesOriginales.set(turno.auxiliar_2_id, turno.auxiliar_2);
+      if (turno.auxiliar_3_id) asignacionesOriginales.set(turno.auxiliar_3_id, turno.auxiliar_3);
+    });
+    
     renderizarTurnos();
+    actualizarBotonGuardar();
   } catch (err) {
     console.error('Error al cargar turnos:', err);
     alert('Error al cargar los turnos');
@@ -61,18 +47,16 @@ function renderizarTurnos() {
     const card = document.createElement('div');
     card.className = 'turno-card';
     
-    // CORRECCIÓN: Parsear fecha correctamente desde PostgreSQL
+    // Parsear fecha correctamente desde PostgreSQL
     let fechaFormateada = 'Fecha inválida';
     try {
-      // PostgreSQL devuelve fechas en formato ISO: "2025-11-02T00:00:00.000Z"
-      const fechaISO = turno.fecha.split('T')[0]; // "2025-11-02"
+      const fechaISO = turno.fecha.split('T')[0];
       const [year, month, day] = fechaISO.split('-');
       fechaFormateada = `${day}/${month}/${year}`;
     } catch (e) {
       console.error('Error al parsear fecha:', turno.fecha, e);
     }
 
-    // Cortar hora a HH:MM (quitar segundos)
     const horaCorta = turno.hora ? turno.hora.substring(0, 5) : '00:00';
 
     card.innerHTML = `
@@ -94,24 +78,26 @@ function renderizarTurnos() {
     container.appendChild(card);
   });
 
-  // Agregar event listeners
-  document.querySelectorAll('.puesto-btn.disponible').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const asignacionId = e.target.dataset.id;
-      await asignarPuesto(asignacionId);
+  // Agregar event listeners para usuarios normales
+  if (!isAdmin) {
+    document.querySelectorAll('.puesto-btn.disponible, .puesto-btn.marcado-temp').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        toggleMarcado(e.target);
+      });
     });
-  });
+  }
 
-  document.querySelectorAll('.puesto-btn.ocupado').forEach(btn => {
-    if (isAdmin) {
+  // Event listeners para admin (desasignar directamente)
+  if (isAdmin) {
+    document.querySelectorAll('.puesto-btn.ocupado').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         const asignacionId = e.target.dataset.id;
         if (confirm('¿Desasignar este puesto?')) {
           await desasignarPuesto(asignacionId);
         }
       });
-    }
-  });
+    });
+  }
 }
 
 function crearPuesto(nombre, id, valor, disponible) {
@@ -119,11 +105,20 @@ function crearPuesto(nombre, id, valor, disponible) {
   let texto = '✋ Anotarme';
   let clickable = true;
 
+  // Verificar si está marcado temporalmente
+  const marcadoTemp = cambiosPendientes.has(id);
+
   if (!disponible) {
     clase = 'no-disponible';
     texto = '🚫 No disponible';
     clickable = false;
+  } else if (marcadoTemp) {
+    // Marcado temporalmente (aún no guardado)
+    clase = 'marcado-temp';
+    texto = `⭐ ${userName}`;
+    clickable = !isAdmin;
   } else if (valor) {
+    // Ya ocupado en la base de datos
     clase = 'ocupado';
     texto = `✅ ${valor}`;
     clickable = isAdmin;
@@ -141,30 +136,85 @@ function crearPuesto(nombre, id, valor, disponible) {
   `;
 }
 
-async function asignarPuesto(asignacionId) {
-  if (!userName) {
-    alert('Error: No se encontró tu nombre de usuario');
+function toggleMarcado(button) {
+  const asignacionId = parseInt(button.dataset.id);
+  
+  if (cambiosPendientes.has(asignacionId)) {
+    // Desmarcar
+    cambiosPendientes.delete(asignacionId);
+  } else {
+    // Marcar
+    cambiosPendientes.add(asignacionId);
+  }
+  
+  renderizarTurnos();
+  actualizarBotonGuardar();
+}
+
+function actualizarBotonGuardar() {
+  const btnGuardar = document.getElementById('btnGuardarCambios');
+  const contador = document.getElementById('contador-cambios');
+  const cantidad = cambiosPendientes.size;
+  
+  if (cantidad > 0) {
+    contador.textContent = `(${cantidad})`;
+    contador.style.display = 'inline';
+  } else {
+    contador.style.display = 'none';
+  }
+  
+  // Habilitar botón solo si hay 3 o más cambios
+  if (cantidad >= 3) {
+    btnGuardar.disabled = false;
+    btnGuardar.style.opacity = '1';
+  } else {
+    btnGuardar.disabled = true;
+    btnGuardar.style.opacity = '0.5';
+  }
+}
+
+async function guardarCambios() {
+  if (cambiosPendientes.size < 3) {
+    alert('⚠️ Debes marcar al menos 3 turnos antes de guardar');
     return;
   }
 
+  if (!confirm(`¿Confirmar ${cambiosPendientes.size} asignaciones?`)) {
+    return;
+  }
+
+  const btnGuardar = document.getElementById('btnGuardarCambios');
+  btnGuardar.disabled = true;
+  btnGuardar.textContent = '💾 Guardando...';
+
   try {
-    const res = await fetch('/api/asignar', {
+    // Enviar todas las asignaciones en lote
+    const asignaciones = Array.from(cambiosPendientes);
+    
+    const res = await fetch('/api/asignar-lote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ asignacion_id: asignacionId, nombre_usuario: userName })
+      body: JSON.stringify({ 
+        asignaciones: asignaciones,
+        nombre_usuario: userName 
+      })
     });
 
     const data = await res.json();
     
     if (res.ok) {
       alert('✅ ' + data.mensaje);
-      cargarTurnos();
+      cambiosPendientes.clear();
+      await cargarTurnos(); // Recargar desde el servidor
     } else {
       alert('❌ ' + data.error);
     }
   } catch (err) {
     console.error('Error:', err);
-    alert('Error al asignarse al puesto');
+    alert('❌ Error al guardar los cambios');
+  } finally {
+    btnGuardar.disabled = false;
+    btnGuardar.textContent = '💾 Guardar Cambios';
   }
 }
 
@@ -197,7 +247,10 @@ document.getElementById('btnImportar').addEventListener('change', async (e) => {
 
   const reader = new FileReader();
   reader.onload = async (event) => {
-    const csvData = event.target.result;
+    let csvData = event.target.result;
+    
+    csvData = csvData.replace(/D�a/g, 'Día');
+    csvData = csvData.replace(/Mi�rcoles/g, 'Miércoles');
     
     try {
       const res = await fetch('/api/importar-csv', {
@@ -228,8 +281,43 @@ document.getElementById('btnExportar').addEventListener('click', () => {
   window.location.href = '/api/exportar-csv';
 });
 
+// Limpiar base de datos
+document.getElementById('btnLimpiar').addEventListener('click', async () => {
+  if (!confirm('⚠️ ¿SEGURO que quieres eliminar TODOS los turnos?\nEsta acción no se puede deshacer.')) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/limpiar-todo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_admin: isAdmin })
+    });
+
+    const data = await res.json();
+    
+    if (res.ok) {
+      alert('✅ ' + data.mensaje);
+      cargarTurnos();
+    } else {
+      alert('❌ ' + data.error);
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    alert('Error al limpiar');
+  }
+});
+
+// Botón guardar cambios
+document.getElementById('btnGuardarCambios').addEventListener('click', guardarCambios);
+
 // Cerrar sesión
 document.getElementById('btnLogout').addEventListener('click', () => {
+  if (cambiosPendientes.size > 0) {
+    if (!confirm('⚠️ Tienes cambios sin guardar. ¿Seguro que quieres salir?')) {
+      return;
+    }
+  }
   localStorage.clear();
   window.location.href = '/';
 });
