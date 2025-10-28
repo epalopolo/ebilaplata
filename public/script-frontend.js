@@ -3,6 +3,7 @@ let isAdmin = localStorage.getItem('isAdmin') === 'true';
 let turnos = [];
 let cambiosPendientes = new Set(); // Guardar IDs de asignaciones marcadas temporalmente
 let asignacionesOriginales = new Map(); // Guardar estado original
+let asignacionesGuardadas = 0; // Cuántas asignaciones ya tiene el usuario en la BD
 
 document.getElementById('user-info').textContent = isAdmin ? '👑 Administrador' : `👤 ${userName}`;
 
@@ -10,9 +11,30 @@ if (isAdmin) {
   document.getElementById('admin-controls').style.display = 'flex';
 }
 
+// Cargar cantidad de asignaciones guardadas del usuario
+async function cargarAsignacionesUsuario() {
+  if (isAdmin) {
+    asignacionesGuardadas = 0;
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/mis-asignaciones?usuario=${encodeURIComponent(userName)}`);
+    const data = await res.json();
+    asignacionesGuardadas = data.total || 0;
+    console.log(`Usuario tiene ${asignacionesGuardadas} asignaciones guardadas`);
+  } catch (err) {
+    console.error('Error al cargar asignaciones del usuario:', err);
+    asignacionesGuardadas = 0;
+  }
+}
+
 // Cargar turnos
 async function cargarTurnos() {
   try {
+    // Primero cargar cuántas asignaciones tiene el usuario
+    await cargarAsignacionesUsuario();
+
     const res = await fetch('/api/turnos');
     const data = await res.json();
     turnos = data.turnos;
@@ -121,6 +143,13 @@ function crearPuesto(nombre, id, valor, disponible) {
     // Ya ocupado en la base de datos
     clase = 'ocupado';
     texto = `✅ ${valor}`;
+    
+    // Si es del usuario actual, resaltarlo
+    if (!isAdmin && valor === userName) {
+      clase = 'ocupado-propio';
+      texto = `✅ ${valor} (Tú)`;
+    }
+    
     clickable = isAdmin;
   }
 
@@ -154,38 +183,60 @@ function toggleMarcado(button) {
 function actualizarBotonGuardar() {
   const btnGuardar = document.getElementById('btnGuardarCambios');
   const contador = document.getElementById('contador-cambios');
-  const cantidad = cambiosPendientes.size;
+  const cantidadPendiente = cambiosPendientes.size;
+  const totalConPendientes = asignacionesGuardadas + cantidadPendiente;
   
-  if (cantidad > 0) {
-    contador.textContent = `(${cantidad})`;
+  if (cantidadPendiente > 0) {
+    contador.innerHTML = `<span class="pendientes">${cantidadPendiente}</span> + <span class="guardadas">${asignacionesGuardadas}</span> = <span class="total">${totalConPendientes}</span>`;
+    contador.style.display = 'inline';
+  } else if (asignacionesGuardadas > 0) {
+    contador.innerHTML = `<span class="guardadas">${asignacionesGuardadas} guardadas</span>`;
     contador.style.display = 'inline';
   } else {
     contador.style.display = 'none';
   }
   
-  // Habilitar botón solo si hay 3 o más cambios
-  if (cantidad >= 3) {
-    btnGuardar.disabled = false;
-    btnGuardar.style.opacity = '1';
+  // Calcular cuántas faltan para llegar a 3
+  const faltantes = Math.max(0, 3 - totalConPendientes);
+  
+  // Actualizar texto del botón
+  if (totalConPendientes >= 3) {
+    btnGuardar.innerHTML = `💾 Guardar Cambios <span id="contador-cambios"></span>`;
+    btnGuardar.disabled = cantidadPendiente === 0; // Solo habilitar si hay cambios pendientes
+    btnGuardar.style.opacity = cantidadPendiente === 0 ? '0.5' : '1';
   } else {
+    btnGuardar.innerHTML = `💾 Guardar Cambios <span id="contador-cambios"></span> <small style="display:block; font-size:11px; margin-top:3px;">Faltan ${faltantes} para completar 3</small>`;
     btnGuardar.disabled = true;
     btnGuardar.style.opacity = '0.5';
   }
+  
+  // Re-insertar el contador actualizado
+  document.getElementById('contador-cambios').innerHTML = contador.innerHTML;
+  document.getElementById('contador-cambios').style.display = contador.style.display;
 }
 
 async function guardarCambios() {
-  if (cambiosPendientes.size < 3) {
-    alert('⚠️ Debes marcar al menos 3 turnos antes de guardar');
+  const totalConPendientes = asignacionesGuardadas + cambiosPendientes.size;
+  
+  if (totalConPendientes < 3) {
+    const faltantes = 3 - totalConPendientes;
+    alert(`⚠️ Te faltan ${faltantes} turnos más para completar el mínimo de 3.\nActualmente tienes:\n- ${asignacionesGuardadas} ya guardados\n- ${cambiosPendientes.size} pendientes de guardar\n\nTotal: ${totalConPendientes}/3`);
     return;
   }
 
-  if (!confirm(`¿Confirmar ${cambiosPendientes.size} asignaciones?`)) {
+  if (cambiosPendientes.size === 0) {
+    alert('⚠️ No hay cambios pendientes para guardar');
+    return;
+  }
+
+  if (!confirm(`¿Confirmar ${cambiosPendientes.size} nuevas asignaciones?\n\nTendrás en total: ${totalConPendientes} turnos asignados`)) {
     return;
   }
 
   const btnGuardar = document.getElementById('btnGuardarCambios');
   btnGuardar.disabled = true;
-  btnGuardar.textContent = '💾 Guardando...';
+  const textoOriginal = btnGuardar.innerHTML;
+  btnGuardar.innerHTML = '💾 Guardando...';
 
   try {
     // Enviar todas las asignaciones en lote
@@ -208,13 +259,12 @@ async function guardarCambios() {
       await cargarTurnos(); // Recargar desde el servidor
     } else {
       alert('❌ ' + data.error);
+      btnGuardar.innerHTML = textoOriginal;
     }
   } catch (err) {
     console.error('Error:', err);
     alert('❌ Error al guardar los cambios');
-  } finally {
-    btnGuardar.disabled = false;
-    btnGuardar.textContent = '💾 Guardar Cambios';
+    btnGuardar.innerHTML = textoOriginal;
   }
 }
 
