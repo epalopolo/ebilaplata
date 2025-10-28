@@ -1,21 +1,17 @@
-<!DOCTYPE html>
-<html lang="es">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
   <title>Escala EBI - Tabla</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="main-container">
-    <div id="user-info" class="user-info"></div>
-    <div id="table-container" class="table-container"></div>
-    <div class="buttons">
-      <button id="save-button" disabled>Guardar cambios</button>
-      <button id="download-button" style="display:none;">Descargar CSV</button>
-    </div>
+  <div class="header">
+    <span id="user-info"></span>
+    <button id="btnSave" disabled>Guardar</button>
+    <button id="btnDownload" style="display:none">Descargar CSV</button>
   </div>
-
-  <script src="script.js"></script>
+  <div id="table-container"></div>
+  <script src="script-frontend.js"></script>
 </body>
 </html>
