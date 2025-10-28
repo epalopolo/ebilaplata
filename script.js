@@ -1,5 +1,5 @@
 // ===== CONFIGURACIÓN =====
-const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbycCP-7ac017G03vWNGdpRVmmLnJBgGGv-OZoqpGgQaR6dAiNPCaqHLkoGQKNNzrl8Z/exec"; // <-- tu URL de Apps Script
+const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycby49EkgWxtIod742Nw88iuet5jVXKYv7eK0qKLnQbQPQsImrto0RxPhQmvH6z4AeW4W/exec"; // <-- tu URL de Apps Script
 let userName = "";
 let isAdmin = false;
 let editedCells = new Set();
