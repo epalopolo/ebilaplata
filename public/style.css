@@ -324,3 +324,82 @@ button {
     box-shadow: 0 0 20px #27ae60, 0 0 30px #27ae60;
   }
 }
+/* Estilo para turnos marcados temporalmente */
+.puesto-btn.marcado-temp {
+  background: #f39c12;
+  color: white;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.puesto-btn.marcado-temp:hover {
+  background: #e67e22;
+  transform: scale(1.05);
+}
+
+/* Estilo para turnos propios ya guardados */
+.puesto-btn.ocupado-propio {
+  background: #16a085;
+  color: white;
+  border: 2px solid #1abc9c;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(243, 156, 18, 0);
+  }
+}
+
+#contador-cambios {
+  background: white;
+  color: #27ae60;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: bold;
+  margin-left: 5px;
+  font-size: 13px;
+}
+
+#contador-cambios .pendientes {
+  color: #f39c12;
+  font-weight: bold;
+}
+
+#contador-cambios .guardadas {
+  color: #16a085;
+  font-weight: bold;
+}
+
+#contador-cambios .total {
+  color: #27ae60;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+#btnGuardarCambios {
+  min-width: 180px;
+}
+
+#btnGuardarCambios small {
+  font-weight: normal;
+  opacity: 0.9;
+}
+
+#btnGuardarCambios:disabled {
+  cursor: not-allowed;
+}
+
+#btnGuardarCambios:not(:disabled) {
+  animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px #27ae60;
+  }
+  50% {
+    box-shadow: 0 0 20px #27ae60, 0 0 30px #27ae60;
+  }
+}
