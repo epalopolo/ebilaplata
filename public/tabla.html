@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Escala EBI - Turnos</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/calendar.css">
 </head>
 <body>
   <div class="header">
@@ -18,6 +19,12 @@
         <button id="btnExportar">📥 Exportar CSV</button>
         <button id="btnLimpiar" style="background: #e74c3c;">🗑️ Limpiar Todo</button>
       </div>
+
+      <!-- Nuevo botón para ir al Calendario -->
+      <button id="btnCalendar" title="Ver calendario" style="background: #6c5ce7; margin-right:8px;">
+        📅 Ver calendario
+      </button>
+
       <button id="btnGuardarCambios" disabled style="background: #27ae60; opacity: 0.5;">
         💾 Guardar Cambios <span id="contador-cambios" style="display:none;"></span>
       </button>
@@ -27,6 +34,16 @@
   
   <div id="turnos-container"></div>
   
+  <script>
+    // abrir calendario al hacer click
+    document.addEventListener('DOMContentLoaded', function() {
+      const btnCalendar = document.getElementById('btnCalendar');
+      btnCalendar.addEventListener('click', () => {
+        window.location.href = '/calendar.html';
+      });
+    });
+  </script>
+
   <script src="script-frontend.js"></script>
 </body>
 </html>
