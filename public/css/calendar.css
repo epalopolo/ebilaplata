@@ -1,4 +1,4 @@
-/* public/css/calendar.css - actualizado para cuadrícula de 5 columnas (sin Martes ni Sábado) */
+/* public/css/calendar.css - actualizado para cuadrícula de 7 columnas (semana completa) */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
 
 body {
@@ -10,7 +10,7 @@ body {
 }
 
 .container {
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   background: white;
   border-radius: 20px;
@@ -46,10 +46,10 @@ body {
   color: #555;
 }
 
-/* Grid del calendario: ahora 5 columnas (Dom, Lun, Mié, Jue, Vie) */
+/* Grid del calendario: 7 columnas (Domingo a Sábado) */
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   gap: 10px;
 }
 
@@ -73,6 +73,13 @@ body {
   padding: 10px;
   min-height: 120px;
   position: relative;
+}
+
+/* celdas vacías (días fuera del mes) */
+.empty-cell {
+  background: #f9f9f9;
+  border: 2px solid #e0e0e0;
+  opacity: 0.5;
 }
 
 .date-number {
@@ -128,4 +135,30 @@ body {
   margin-top: 6px;
   color: #666;
   font-size: 0.9em;
+}
+
+/* Responsivo: en pantallas pequeñas, reducir a menos columnas */
+@media (max-width: 1200px) {
+  .calendar-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  
+  .container {
+    max-width: 1200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .calendar-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .container {
+    padding: 15px;
+  }
+  
+  .day-cell {
+    min-height: 80px;
+    padding: 8px;
+  }
 }
