@@ -1,12 +1,32 @@
 // calendar.js
 // Consulta /api/turnos, procesa los resultados y renderiza un calendario
-// similar al diseño provisto. Se actualiza automáticamente cada INTERVAL ms.
+// Respetando las reglas:
+// - Nombre + inicial del apellido si hay nombre y apellido
+// - No mostrar nada si dice "No disponible"
+// - Mostrar "FALTA" (rojo) si la celda está vacía
 
 const POLL_INTERVAL_MS = 15000; // 15s
 
+function normalizeText(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).trim();
+}
+
+function isNoDisponible(s) {
+  if (!s) return false;
+  return normalizeText(s).toLowerCase() === 'no disponible';
+}
+
 function formatName(fullName) {
-  if (!fullName || fullName.trim() === '' || fullName.toLowerCase() === 'no disponible') return null;
-  const parts = fullName.trim().split(' ');
+  // Retorna: "Nombre A." si hay nombre y apellido
+  // Si sólo hay un nombre devuelve ese nombre
+  // Si es vacío o "No disponible" devuelve null
+  const raw = normalizeText(fullName);
+  if (!raw) return null;
+  if (isNoDisponible(raw)) return null;
+
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return null;
   if (parts.length === 1) return parts[0];
   const firstName = parts[0];
   const lastName = parts[parts.length - 1];
@@ -14,54 +34,69 @@ function formatName(fullName) {
 }
 
 function processRows(rows) {
-  // rows vienen de /api/turnos (server.js devuelve { turnos: rows })
-  // cada row tiene: dia, fecha (ISO), hora (HH:MM:SS), sala, titular, auxiliar_1, auxiliar_2, auxiliar_3
   const calendar = {};
   let monthYear = {};
 
   rows.forEach(r => {
     if (!r.fecha || !r.hora || !r.sala) return;
 
-    // fecha puede venir en ISO (YYYY-MM-DD). Obtener día, mes, año para título.
-    const fecha = new Date(r.fecha);
-    if (isNaN(fecha)) {
-      // si no es ISO, intentar parseo simple
-      const parts = (r.fecha || '').split('/');
+    // fecha: intentar crear Date desde ISO (server guarda DATE)
+    let fechaObj = new Date(r.fecha);
+    if (isNaN(fechaObj)) {
+      // intentar DD/MM/YYYY
+      const parts = String(r.fecha).split('/');
       if (parts.length === 3) {
-        fecha = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        fechaObj = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
       }
     }
+    if (isNaN(fechaObj)) return;
 
-    const dayNum = fecha.getDate();
-    const month = fecha.toLocaleString('es-ES', { month: 'long' });
-    const year = fecha.getFullYear();
+    const dayNum = fechaObj.getDate();
+    const month = fechaObj.toLocaleString('es-ES', { month: 'long' });
+    const year = fechaObj.getFullYear();
     if (!monthYear.month) {
       monthYear.month = month.charAt(0).toUpperCase() + month.slice(1);
       monthYear.year = year;
     }
 
     if (!calendar[dayNum]) {
-      calendar[dayNum] = { day: r.dia || fecha.toLocaleString('es-ES', { weekday: 'long' }), times: {} };
+      calendar[dayNum] = { day: r.dia || fechaObj.toLocaleString('es-ES', { weekday: 'long' }), times: {} };
     }
 
     const timeKey = (r.hora || '').substring(0,5); // HH:MM
     if (!calendar[dayNum].times[timeKey]) calendar[dayNum].times[timeKey] = {};
     const room = r.sala;
 
-    // posiciones según el esquema del backend
-    const positions = [r.titular, r.auxiliar_1, r.auxiliar_2, r.auxiliar_3];
+    // posiciones: ajustar nombres de campo según la vista (titular, auxiliar_1, auxiliar_2, auxiliar_3)
+    const positions = [
+      r.titular ?? r.titular_nombre ?? r.titular || r.titular, 
+      r.auxiliar_1 ?? r.auxiliar1 ?? r.auxiliar_1, 
+      r.auxiliar_2 ?? r.auxiliar2 ?? r.auxiliar_2, 
+      r.auxiliar_3 ?? r.auxiliar3 ?? r.auxiliar_3
+    ].map(normalizeText);
+
     const teachers = [];
     let emptyCount = 0;
 
-    positions.forEach(pos => {
-      const formatted = formatName(pos);
-      if (formatted) teachers.push(formatted);
-      else {
-        // si viene 'No disponible' o null
-        if (!pos || pos.trim() === '') emptyCount++;
-        else if (pos.toLowerCase() === 'no disponible') {
-          // No disponible -> mostrar como tal (no cuenta como falta)
-        } else emptyCount++;
+    positions.forEach(posRaw => {
+      // Si dice "No disponible" -> no mostrar nada y no contar como FALTA
+      if (isNoDisponible(posRaw)) {
+        return;
+      }
+
+      // Si la celda está vacía -> contar como FALTA
+      if (!posRaw) {
+        emptyCount++;
+        return;
+      }
+
+      // Si tiene texto -> formatear Nombre A.
+      const formatted = formatName(posRaw);
+      if (formatted) {
+        teachers.push(formatted);
+      } else {
+        // Si no pudo formatear (caso raro), considerarlo falta
+        emptyCount++;
       }
     });
 
@@ -81,13 +116,10 @@ function renderCalendar(calendarObj, monthYear) {
     if (h1) h1.textContent = `📅 Calendario de Turnos - ${monthYear.month} ${monthYear.year}`;
   }
 
-  // grid: 5 columnas como en tu diseño original
   const calendarDiv = document.createElement('div');
   calendarDiv.className = 'calendar-grid';
 
-  // headers (Lunes..Viernes) — uso simple: mostrar cabeceras fijas
   const dayHeaders = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  // si querés sólo 5 columnas, adaptá aquí; por ahora usamos el layout con los días reales
   dayHeaders.forEach(h => {
     const header = document.createElement('div');
     header.className = 'day-header';
@@ -137,6 +169,7 @@ function renderCalendar(calendarObj, monthYear) {
           roomDiv.appendChild(teacherSpan);
         }
 
+        // Mostrar FALTA para celdas vacías (en rojo). Si hay N vacíos, mostrar N etiquetas.
         for (let i = 0; i < roomData.emptyCount; i++) {
           roomDiv.appendChild(document.createTextNode(' '));
           const falta = document.createElement('span');
@@ -185,13 +218,10 @@ async function fetchAndRender() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // carga inicial
   fetchAndRender();
 
-  // botón de actualizar manualmente
   const btnRefresh = document.getElementById('btnRefresh');
   if (btnRefresh) btnRefresh.addEventListener('click', fetchAndRender);
 
-  // polling automático
   pollTimer = setInterval(fetchAndRender, POLL_INTERVAL_MS);
 });
