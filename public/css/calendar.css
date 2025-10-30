@@ -1,0 +1,130 @@
+/* calendar.css - estilos adaptados del diseño proporcionado */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+body {
+  font-family: 'Poppins', sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: linear-gradient(135deg, #fde2e4 0%, #fad0c4 50%, #ffd1ff 100%);
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+
+.topbar {
+  margin-bottom: 16px;
+}
+
+.topbar h1 {
+  margin: 0 0 8px 0;
+  color: #e28ba6;
+  font-size: 1.5em;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.btn {
+  display:inline-block;
+  padding:8px 12px;
+  border-radius:6px;
+  background:#ddd;
+  color:#111;
+  text-decoration:none;
+  border:none;
+  cursor:pointer;
+}
+
+.lead {
+  margin: 0 0 12px 0;
+  color: #555;
+}
+
+/* Grid del calendario */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+}
+
+/* headers de días */
+.day-header {
+  background: #e28ba6;
+  color: white;
+  padding: 10px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9em;
+  border-radius: 10px 10px 0 0;
+  text-transform: uppercase;
+}
+
+/* celdas */
+.day-cell {
+  background: #fef6f7;
+  border: 2px solid #f4d4dc;
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 120px;
+  position: relative;
+}
+
+.date-number {
+  font-weight: 700;
+  font-size: 1.1em;
+  color: #e28ba6;
+  margin-bottom: 8px;
+}
+
+.schedule {
+  font-size: 0.75em;
+  line-height: 1.4;
+}
+
+.time-block {
+  margin-bottom: 8px;
+  background: white;
+  padding: 5px;
+  border-radius: 5px;
+  border-left: 3px solid #e28ba6;
+}
+
+.time {
+  font-weight: 600;
+  color: #c75b7a;
+  font-size: 0.9em;
+}
+
+.room {
+  font-weight: 600;
+  color: #555;
+  font-size: 0.85em;
+}
+
+.teacher {
+  color: #666;
+  margin-left: 3px;
+}
+
+.falta {
+  color: #d32f2f;
+  font-weight: 700;
+  font-size: 0.85em;
+  background: #ffebee;
+  padding: 2px 5px;
+  border-radius: 3px;
+  display: inline-block;
+  margin: 2px;
+}
+
+.last-update {
+  margin-top: 6px;
+  color: #666;
+  font-size: 0.9em;
+}
