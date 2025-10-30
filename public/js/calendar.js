@@ -1,6 +1,10 @@
 // public/js/calendar.js
-// Calendario: solo columnas Domingo, Lunes, Miércoles, Jueves, Viernes
-// Reglas: Nombre + inicial del apellido; ignorar "No disponible"; "FALTA" para celdas vacías
+// Calendario corregido: semanas empiezan en Domingo, columnas visibles:
+// Domingo, Lunes, Miércoles, Jueves, Viernes (se omiten Martes y Sábado).
+// Mantiene reglas:
+// - Nombre + inicial apellido
+// - Ignorar "No disponible"
+// - Mostrar "FALTA" por cada posición vacía
 
 const POLL_INTERVAL_MS = 15000; // 15s
 
@@ -28,8 +32,10 @@ function formatName(fullName) {
 }
 
 function processRows(rows) {
+  // Devuelve calendar: { [dayNum]: { day: 'Lunes', times: { '16:00': { sala: { teachers:[], emptyCount } } } } }
+  // y monthYear con monthIndex para construir semanas correctamente.
   const calendar = {};
-  let monthYear = {}; // { month: 'Noviembre', year: 2025, monthIndex: 10 }
+  let monthYear = {}; // { month, year, monthIndex }
 
   if (!Array.isArray(rows)) return { calendar, monthYear };
 
@@ -39,7 +45,6 @@ function processRows(rows) {
     // parse fecha (Postgres DATE -> ISO 'YYYY-MM-DD' esperado)
     let fechaObj = new Date(r.fecha);
     if (isNaN(fechaObj)) {
-      // intentar DD/MM/YYYY
       const parts = String(r.fecha).split('/');
       if (parts.length === 3) {
         fechaObj = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
@@ -59,6 +64,7 @@ function processRows(rows) {
     }
 
     if (!calendar[dayNum]) {
+      // usar el campo r.dia si viene (por si lo querés mostrar tal cual de la DB)
       calendar[dayNum] = { day: r.dia || fechaObj.toLocaleString('es-ES', { weekday: 'long' }), times: {} };
     }
 
@@ -66,7 +72,7 @@ function processRows(rows) {
     if (!calendar[dayNum].times[timeKey]) calendar[dayNum].times[timeKey] = {};
     const room = r.sala;
 
-    // Campos esperados por init-db.sql: titular, auxiliar_1, auxiliar_2, auxiliar_3
+    // Campos esperados: titular, auxiliar_1, auxiliar_2, auxiliar_3
     const positions = [
       normalizeText(r.titular || ''),
       normalizeText(r.auxiliar_1 || ''),
@@ -78,15 +84,8 @@ function processRows(rows) {
     let emptyCount = 0;
 
     positions.forEach(posRaw => {
-      // Ignorar "No disponible" (no cuenta como falta, no se muestra)
-      if (isNoDisponible(posRaw)) {
-        return;
-      }
-      // Si vacío -> FALTA
-      if (!posRaw) {
-        emptyCount++;
-        return;
-      }
+      if (isNoDisponible(posRaw)) return; // ignorar "No disponible"
+      if (!posRaw) { emptyCount++; return; } // contar como falta
       const formatted = formatName(posRaw);
       if (formatted) teachers.push(formatted);
       else emptyCount++;
@@ -98,7 +97,7 @@ function processRows(rows) {
   return { calendar, monthYear };
 }
 
-// mapping weekday -> column index in reduced grid (Domingo, Lunes, Miércoles, Jueves, Viernes)
+// weekdayToCol: weekday -> column index en la grilla reducida.
 // weekday: 0=Dom,1=Lun,2=Mar,3=Mié,4=Jue,5=Vie,6=Sáb
 function weekdayToCol(weekday) {
   switch (weekday) {
@@ -111,36 +110,34 @@ function weekdayToCol(weekday) {
   }
 }
 
-// Construye las semanas del mes -> array de filas; cada fila es array de 5 celdas (número de día o null)
+// Construye la matriz de semanas del mes.
+// Cada semana es un array de 5 celdas (Dom, Lun, Mié, Jue, Vie) con el número de día o null.
 function buildWeeksForMonth(monthIndex, year) {
+  const firstDay = new Date(year, monthIndex, 1);
+  const firstWeekday = firstDay.getDay(); // 0=Dom
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-  const weeks = [];
-  let currentWeek = Array(5).fill(null);
-  let lastCol = -1;
+
+  const weeksCount = Math.ceil((daysInMonth + firstWeekday) / 7);
+  const weeks = Array.from({ length: weeksCount }, () => Array(5).fill(null));
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dt = new Date(year, monthIndex, d);
     const wd = dt.getDay();
-    // Ignorar martes(2) y sábado(6)
-    if (wd === 2 || wd === 6) {
-      continue;
-    }
+    if (wd === 2 || wd === 6) continue; // skip Martes y Sábado
+
     const col = weekdayToCol(wd);
-    if (col === -1) continue; // skip safety
+    if (col === -1) continue;
 
-    // Si el día actual se coloca en una columna menor o igual a la anterior, comenzamos nueva fila
-    if (lastCol >= 0 && col <= lastCol) {
-      weeks.push(currentWeek);
-      currentWeek = Array(5).fill(null);
-      lastCol = -1;
+    const weekIndex = Math.floor((d + firstWeekday - 1) / 7);
+    // seguridad: si weekIndex fuera mayor al tamaño (poco probable) ajustamos
+    if (weekIndex < 0) continue;
+    if (weekIndex >= weeks.length) {
+      // extender si fuera necesario
+      while (weeks.length <= weekIndex) weeks.push(Array(5).fill(null));
     }
-
-    currentWeek[col] = d;
-    lastCol = col;
+    weeks[weekIndex][col] = d;
   }
 
-  // agregar la última semana si tiene algún contenido o para completitud
-  weeks.push(currentWeek);
   return weeks;
 }
 
@@ -149,41 +146,38 @@ function renderCalendar(calendarObj, monthYear) {
   if (!container) return;
   container.innerHTML = '';
 
-  // Si no hay datos, mostrar por lo menos el calendario del mes (si monthYear existe)
   const monthIndex = (monthYear && typeof monthYear.monthIndex === 'number') ? monthYear.monthIndex : null;
   const year = (monthYear && monthYear.year) ? monthYear.year : null;
 
-  // Si no hay monthYear ni datos, mostramos mensaje
+  // si no hay datos y no detectamos month, mostramos mensaje
   if ((!calendarObj || Object.keys(calendarObj).length === 0) && (monthIndex === null || year === null)) {
     container.innerHTML = '<div style="padding:24px;color:#666;font-weight:600;">No hay turnos cargados aún.</div>';
     return;
   }
 
-  // Si monthYear existe, construir semanas del mes
+  // construir semanas
   let weeks = [];
   if (monthIndex !== null && year !== null) {
     weeks = buildWeeksForMonth(monthIndex, year);
   } else {
-    // Fallback: si no tenemos month info, construir a partir de claves disponibles
+    // fallback: agrupar días disponibles en filas de 5 (no ideal)
     const sortedDates = Object.keys(calendarObj).map(x=>parseInt(x)).sort((a,b)=>a-b);
-    // Agrupar N por fila simple (no ideal, pero es fallback)
-    const chunkSize = 5;
-    for (let i=0;i<sortedDates.length;i+=chunkSize) {
+    for (let i=0;i<sortedDates.length;i+=5) {
       const week = Array(5).fill(null);
-      const slice = sortedDates.slice(i,i+chunkSize);
+      const slice = sortedDates.slice(i,i+5);
       for (let j=0;j<slice.length;j++) week[j] = slice[j];
       weeks.push(week);
     }
   }
 
-  // actualizar título si aplica
+  // Título
   if (monthYear && monthYear.month && monthYear.year) {
     const h1 = document.querySelector('h1');
     if (h1) h1.textContent = `📅 Calendario de Turnos - ${monthYear.month} ${monthYear.year}`;
   }
 
   const calendarDiv = document.createElement('div');
-  calendarDiv.className = 'calendar-grid'; // ahora 5 columnas en CSS
+  calendarDiv.className = 'calendar-grid'; // css: 5 columnas
 
   const dayHeaders = ['Domingo','Lunes','Miércoles','Jueves','Viernes'];
   dayHeaders.forEach(h => {
@@ -193,7 +187,7 @@ function renderCalendar(calendarObj, monthYear) {
     calendarDiv.appendChild(header);
   });
 
-  // Renderizar cada semana como 5 celdas
+  // recorrer semanas y renderizar 5 columnas por semana
   weeks.forEach(week => {
     for (let col = 0; col < 5; col++) {
       const dateNum = week[col];
@@ -201,12 +195,13 @@ function renderCalendar(calendarObj, monthYear) {
       dayCell.className = 'day-cell';
 
       if (!dateNum) {
-        // Celda vacía (por ejemplo, días del mes en martes/sábado o huecos)
+        // celda vacía (hueco)
         dayCell.innerHTML = '<div class="date-number"></div>';
         calendarDiv.appendChild(dayCell);
         continue;
       }
 
+      // mostrar número y (opcional) día tal cual viene en la DB
       const dateNumber = document.createElement('div');
       dateNumber.className = 'date-number';
       dateNumber.textContent = String(dateNum).padStart(2, '0');
@@ -215,7 +210,6 @@ function renderCalendar(calendarObj, monthYear) {
       const schedule = document.createElement('div');
       schedule.className = 'schedule';
 
-      // Si hay datos para el día, renderizarlos; si no, dejar vacío (pero el número de día aparece)
       const dayData = calendarObj[dateNum];
       if (dayData && dayData.times) {
         const sortedTimes = Object.keys(dayData.times).sort();
@@ -246,7 +240,6 @@ function renderCalendar(calendarObj, monthYear) {
               roomDiv.appendChild(teacherSpan);
             }
 
-            // Mostrar una etiqueta FALTA por cada posición vacía
             for (let i = 0; i < roomData.emptyCount; i++) {
               roomDiv.appendChild(document.createTextNode(' '));
               const falta = document.createElement('span');
