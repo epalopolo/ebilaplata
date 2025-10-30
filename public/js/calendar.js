@@ -38,12 +38,10 @@ function processRows(rows) {
   let monthYear = {};
 
   rows.forEach(r => {
-    if (!r.fecha || !r.hora || !r.sala) return;
+    if (!r || !r.fecha || !r.hora || !r.sala) return;
 
-    // fecha: intentar crear Date desde ISO (server guarda DATE)
     let fechaObj = new Date(r.fecha);
     if (isNaN(fechaObj)) {
-      // intentar DD/MM/YYYY
       const parts = String(r.fecha).split('/');
       if (parts.length === 3) {
         fechaObj = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
@@ -63,41 +61,35 @@ function processRows(rows) {
       calendar[dayNum] = { day: r.dia || fechaObj.toLocaleString('es-ES', { weekday: 'long' }), times: {} };
     }
 
-    const timeKey = (r.hora || '').substring(0,5); // HH:MM
+    const timeKey = (r.hora || '').substring(0,5);
     if (!calendar[dayNum].times[timeKey]) calendar[dayNum].times[timeKey] = {};
     const room = r.sala;
 
-    // posiciones: ajustar nombres de campo según la vista (titular, auxiliar_1, auxiliar_2, auxiliar_3)
-    const positions = [
-      r.titular ?? r.titular_nombre ?? r.titular || r.titular, 
-      r.auxiliar_1 ?? r.auxiliar1 ?? r.auxiliar_1, 
-      r.auxiliar_2 ?? r.auxiliar2 ?? r.auxiliar_2, 
-      r.auxiliar_3 ?? r.auxiliar3 ?? r.auxiliar_3
-    ].map(normalizeText);
+    const positions = [normalizeText(r.titular || ''), normalizeText(r.auxiliar_1 || ''), normalizeText(r.auxiliar_2 || ''), normalizeText(r.auxiliar_3 || '')];
+    const disponibles = [r.titular_disponible, r.aux1_disponible, r.aux2_disponible, r.aux3_disponible];
 
     const teachers = [];
     let emptyCount = 0;
 
-    positions.forEach(posRaw => {
-      // Si dice "No disponible" -> no mostrar nada y no contar como FALTA
+    positions.forEach((posRaw, idx) => {
+      // Si el puesto no está disponible (disponible = false) -> ignorar completamente
+      if (disponibles[idx] === false) {
+        return;
+      }
+      
+      // Si dice "No disponible" (por texto) -> ignorar
       if (isNoDisponible(posRaw)) {
         return;
       }
 
-      // Si la celda está vacía -> contar como FALTA
       if (!posRaw) {
         emptyCount++;
         return;
       }
 
-      // Si tiene texto -> formatear Nombre A.
       const formatted = formatName(posRaw);
-      if (formatted) {
-        teachers.push(formatted);
-      } else {
-        // Si no pudo formatear (caso raro), considerarlo falta
-        emptyCount++;
-      }
+      if (formatted) teachers.push(formatted);
+      else emptyCount++;
     });
 
     calendar[dayNum].times[timeKey][room] = { teachers, emptyCount };
@@ -110,7 +102,11 @@ function renderCalendar(calendarObj, monthYear) {
   const container = document.getElementById('calendar-container');
   container.innerHTML = '';
 
-  // actualizar título
+  if (!calendarObj || Object.keys(calendarObj).length === 0) {
+    container.innerHTML = '<div style="padding:24px;color:#666;font-weight:600;">No hay turnos cargados aún.</div>';
+    return;
+  }
+
   if (monthYear && monthYear.month && monthYear.year) {
     const h1 = document.querySelector('h1');
     if (h1) h1.textContent = `📅 Calendario de Turnos - ${monthYear.month} ${monthYear.year}`;
