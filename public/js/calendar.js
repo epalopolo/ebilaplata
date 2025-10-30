@@ -2,8 +2,9 @@
 // Calendario completo: muestra todos los días de la semana (Domingo a Sábado)
 // Reglas:
 // - Nombre + inicial apellido
-// - Ignorar "No disponible" (no mostrar nada, NO contar como falta)
-// - Mostrar "FALTA" en rojo SOLO por cada posición vacía (sin dato)
+// - Si disponible=false (No disponible): no mostrar nada, NO contar como falta
+// - Si disponible=true y vacío: mostrar "FALTA" en rojo
+// - Si disponible=true y tiene nombre: mostrar nombre formateado
 
 const POLL_INTERVAL_MS = 15000; // 15s
 
@@ -12,16 +13,9 @@ function normalizeText(s) {
   return String(s).trim();
 }
 
-function isNoDisponible(s) {
-  if (!s) return false;
-  const normalized = String(s).trim().toLowerCase();
-  return normalized === 'no disponible';
-}
-
 function formatName(fullName) {
   const raw = normalizeText(fullName);
   if (!raw) return null;
-  if (isNoDisponible(raw)) return null;
 
   const parts = raw.split(/\s+/).filter(Boolean);
   if (parts.length === 0) return null;
@@ -75,36 +69,38 @@ function processRows(rows) {
     if (!calendar[dayNum].times[timeKey]) calendar[dayNum].times[timeKey] = {};
     const room = r.sala;
 
+    // Array de posiciones con sus nombres y estado de disponibilidad
     const positions = [
-      r.titular || '',
-      r.auxiliar_1 || '',
-      r.auxiliar_2 || '',
-      r.auxiliar_3 || ''
+      { name: r.titular || '', disponible: r.titular_disponible },
+      { name: r.auxiliar_1 || '', disponible: r.aux1_disponible },
+      { name: r.auxiliar_2 || '', disponible: r.aux2_disponible },
+      { name: r.auxiliar_3 || '', disponible: r.aux3_disponible }
     ];
 
     const teachers = [];
     let emptyCount = 0;
 
-    // LÓGICA CORREGIDA: verificar "No disponible" ANTES de procesar
-    positions.forEach(posRaw => {
-      const normalized = normalizeText(posRaw);
+    // LÓGICA CORREGIDA: usar el campo disponible
+    positions.forEach(pos => {
+      const normalized = normalizeText(pos.name);
       
-      // Primero verificar si es "No disponible"
-      if (isNoDisponible(normalized)) {
-        // NO hacer nada, NO contar como falta, simplemente ignorar
-        return;
+      // Si disponible es false, es "No disponible" → ignorar completamente
+      if (pos.disponible === false) {
+        return; // NO mostrar nada, NO contar como falta
       }
       
-      // Si está vacío (sin dato), contar como falta
-      if (normalized === '') {
+      // Si disponible es true pero no hay nombre → FALTA
+      if (pos.disponible === true && normalized === '') {
         emptyCount++;
         return;
       }
       
-      // Si tiene un nombre válido, formatearlo y agregarlo
-      const formatted = formatName(normalized);
-      if (formatted) {
-        teachers.push(formatted);
+      // Si disponible es true y tiene nombre → mostrar nombre formateado
+      if (pos.disponible === true && normalized !== '') {
+        const formatted = formatName(normalized);
+        if (formatted) {
+          teachers.push(formatted);
+        }
       }
     });
 
