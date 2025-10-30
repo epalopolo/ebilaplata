@@ -14,7 +14,8 @@ function normalizeText(s) {
 
 function isNoDisponible(s) {
   if (!s) return false;
-  return normalizeText(s).toLowerCase() === 'no disponible';
+  const normalized = String(s).trim().toLowerCase();
+  return normalized === 'no disponible';
 }
 
 function formatName(fullName) {
@@ -84,18 +85,23 @@ function processRows(rows) {
     const teachers = [];
     let emptyCount = 0;
 
+    // LÓGICA CORREGIDA: verificar "No disponible" ANTES de procesar
     positions.forEach(posRaw => {
       const normalized = normalizeText(posRaw);
       
+      // Primero verificar si es "No disponible"
       if (isNoDisponible(normalized)) {
+        // NO hacer nada, NO contar como falta, simplemente ignorar
         return;
       }
       
-      if (!normalized) {
+      // Si está vacío (sin dato), contar como falta
+      if (normalized === '') {
         emptyCount++;
         return;
       }
       
+      // Si tiene un nombre válido, formatearlo y agregarlo
       const formatted = formatName(normalized);
       if (formatted) {
         teachers.push(formatted);
