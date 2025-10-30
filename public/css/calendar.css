@@ -112,12 +112,13 @@ body {
   margin-left: 3px;
 }
 
+/* FALTA en rojo bien visible */
 .falta {
-  color: #d32f2f;
+  color: #ffffff;
   font-weight: 700;
-  font-size: 0.85em;
-  background: #ffebee;
-  padding: 2px 5px;
+  font-size: 0.75em;
+  background: #e74c3c;
+  padding: 2px 6px;
   border-radius: 3px;
   display: inline-block;
   margin: 2px;
