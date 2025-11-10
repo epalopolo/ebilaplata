@@ -1,18 +1,26 @@
-// public/js/calendar.js
-// Calendario completo: muestra todos los días de la semana (Domingo a Sábado)
 // Reglas:
 // - Nombre + inicial apellido
 // - Si disponible=false (No disponible): no mostrar nada, NO contar como falta
 // - Si disponible=true y vacío: mostrar "FALTA" en rojo
 // - Si disponible=true y tiene nombre: mostrar nombre formateado
+// public/js/calendar.js
+// Calendario completo con control de pausa para admin
 
 const POLL_INTERVAL_MS = 15000; // 15s
 
+// Variables globales
+let lastDataJson = null;
+let pollTimer = null;
+let isPaused = false;
+let isAdmin = false;
+
+// Función para normalizar texto
 function normalizeText(s) {
   if (s === null || s === undefined) return '';
   return String(s).trim();
 }
 
+// Función para formatear nombres
 function formatName(fullName) {
   const raw = normalizeText(fullName);
   if (!raw) return null;
@@ -80,13 +88,13 @@ function processRows(rows) {
     const teachers = [];
     let emptyCount = 0;
 
-    // LÓGICA CORREGIDA: usar el campo disponible
+    // LÓGICA: usar el campo disponible
     positions.forEach(pos => {
       const normalized = normalizeText(pos.name);
       
       // Si disponible es false, es "No disponible" → ignorar completamente
       if (pos.disponible === false) {
-        return; // NO mostrar nada, NO contar como falta
+        return;
       }
       
       // Si disponible es true pero no hay nombre → FALTA
@@ -245,9 +253,7 @@ function renderCalendar(calendarObj, monthYear) {
   container.appendChild(calendarDiv);
 }
 
-let lastDataJson = null;
-let pollTimer = null;
-
+// Función principal de actualización
 async function fetchAndRender() {
   try {
     const res = await fetch('/api/turnos', { cache: 'no-store' });
@@ -273,9 +279,107 @@ async function fetchAndRender() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  fetchAndRender();
-  const btnRefresh = document.getElementById('btnRefresh');
-  if (btnRefresh) btnRefresh.addEventListener('click', fetchAndRender);
+// Iniciar polling automático
+function startPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+  }
   pollTimer = setInterval(fetchAndRender, POLL_INTERVAL_MS);
+  updateUIStatus();
+}
+
+// Detener polling automático
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  updateUIStatus();
+}
+
+// Alternar pausa
+function togglePause() {
+  isPaused = !isPaused;
+  localStorage.setItem('calendarPaused', isPaused ? 'true' : 'false');
+  
+  if (isPaused) {
+    stopPolling();
+  } else {
+    startPolling();
+  }
+  
+  updateUIStatus();
+}
+
+// Actualizar UI según el estado
+function updateUIStatus() {
+  const btnTogglePause = document.getElementById('btnTogglePause');
+  const autoUpdateStatus = document.getElementById('auto-update-status');
+  const updateInfo = document.getElementById('update-info');
+  
+  if (isPaused) {
+    if (btnTogglePause) {
+      btnTogglePause.textContent = '▶️ Reanudar actualizaciones';
+      btnTogglePause.style.background = '#27ae60';
+    }
+    if (autoUpdateStatus) {
+      autoUpdateStatus.textContent = '🔴 Actualizaciones automáticas pausadas';
+      autoUpdateStatus.style.color = '#e74c3c';
+    }
+    if (updateInfo) {
+      updateInfo.textContent = 'Actualizaciones automáticas pausadas por el administrador.';
+    }
+  } else {
+    if (btnTogglePause) {
+      btnTogglePause.textContent = '⏸️ Pausar actualizaciones';
+      btnTogglePause.style.background = '#f39c12';
+    }
+    if (autoUpdateStatus) {
+      autoUpdateStatus.textContent = '🟢 Actualizaciones automáticas activas';
+      autoUpdateStatus.style.color = '#27ae60';
+    }
+    if (updateInfo) {
+      updateInfo.textContent = 'Se actualiza automáticamente cada 15 segundos.';
+    }
+  }
+}
+
+// Inicialización
+document.addEventListener('DOMContentLoaded', () => {
+  // Verificar si es admin
+  isAdmin = localStorage.getItem('isAdmin') === 'true';
+  
+  // Mostrar controles de admin si corresponde
+  if (isAdmin) {
+    const btnTogglePause = document.getElementById('btnTogglePause');
+    const autoUpdateStatus = document.getElementById('auto-update-status');
+    
+    if (btnTogglePause) btnTogglePause.style.display = 'inline-block';
+    if (autoUpdateStatus) autoUpdateStatus.style.display = 'inline';
+    
+    // Restaurar estado de pausa
+    const savedPauseState = localStorage.getItem('calendarPaused');
+    isPaused = savedPauseState === 'true';
+  }
+  
+  // Cargar datos inicialmente
+  fetchAndRender();
+  
+  // Configurar botones
+  const btnRefresh = document.getElementById('btnRefresh');
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', fetchAndRender);
+  }
+  
+  const btnTogglePause = document.getElementById('btnTogglePause');
+  if (btnTogglePause) {
+    btnTogglePause.addEventListener('click', togglePause);
+  }
+  
+  // Iniciar polling si no está pausado
+  if (!isPaused) {
+    startPolling();
+  }
+  
+  updateUIStatus();
 });
