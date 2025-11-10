@@ -182,3 +182,45 @@ body {
   border-radius: 6px;
   background: #f0f0f0;
 }
+
+.btn-pause {
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-pause:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.btn-download {
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-download:hover {
+  background: #d35400 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(230, 126, 34, 0.4);
+}
+
+.btn-download:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.auto-update-status {
+  font-size: 0.85em;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #f0f0f0;
+}
+
+/* Asegurar que el área de captura se vea bien en la imagen */
+#calendar-capture-area {
+  background: white;
+  padding: 20px;
+  border-radius: 15px;
+}
