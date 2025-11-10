@@ -14,14 +14,23 @@
         <h1>📅 Calendario de Turnos</h1>
         <div>
           <a class="btn" href="/tabla.html" style="margin-right:10px;">◀ Volver</a>
+          <!-- Botón de pausa/reanudación (solo admin) -->
+          <button id="btnTogglePause" class="btn btn-pause" style="background:#f39c12;color:white;margin-right:10px;display:none;">
+            ⏸️ Pausar actualizaciones
+          </button>
           <button id="btnRefresh" class="btn" style="background:#6c5ce7;color:white;">🔄 Actualizar ahora</button>
         </div>
       </div>
-      <div id="last-update" class="last-update">Última actualización: —</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div id="last-update" class="last-update">Última actualización: —</div>
+        <div id="auto-update-status" class="auto-update-status" style="display:none;">
+          🟢 Actualizaciones automáticas activas
+        </div>
+      </div>
     </header>
 
     <main id="main" class="container-main">
-      <p class="lead">El calendario muestra los turnos cargados en la base de datos. Se actualiza automáticamente cada 15 segundos.</p>
+      <p class="lead">El calendario muestra los turnos cargados en la base de datos. <span id="update-info">Se actualiza automáticamente cada 15 segundos.</span></p>
       <div id="calendar-container"></div>
     </main>
   </div>
