@@ -4,7 +4,7 @@
 // - Si disponible=true y vacío: mostrar "FALTA" en rojo
 // - Si disponible=true y tiene nombre: mostrar nombre formateado
 // public/js/calendar.js
-// Calendario completo con control de pausa para admin
+// Calendario completo con control de pausa para admin y descarga JPG
 
 const POLL_INTERVAL_MS = 15000; // 15s
 
@@ -344,6 +344,69 @@ function updateUIStatus() {
   }
 }
 
+// Función para descargar el calendario como JPG
+async function downloadCalendarAsJPG() {
+  const btnDownload = document.getElementById('btnDownloadJPG');
+  const originalText = btnDownload.textContent;
+  
+  try {
+    // Cambiar texto del botón
+    btnDownload.textContent = '⏳ Generando imagen...';
+    btnDownload.disabled = true;
+
+    // Obtener el área a capturar
+    const captureArea = document.getElementById('calendar-capture-area');
+    
+    if (!captureArea) {
+      throw new Error('No se encontró el área del calendario');
+    }
+
+    // Generar el canvas con html2canvas
+    const canvas = await html2canvas(captureArea, {
+      backgroundColor: '#ffffff',
+      scale: 2, // Mejor calidad
+      logging: false,
+      useCORS: true,
+      allowTaint: true
+    });
+
+    // Convertir canvas a blob JPG
+    canvas.toBlob((blob) => {
+      // Crear URL temporal
+      const url = URL.createObjectURL(blob);
+      
+      // Crear link de descarga
+      const link = document.createElement('a');
+      const h1Text = document.querySelector('h1').textContent;
+      const fileName = `calendario-ebi-${new Date().toISOString().split('T')[0]}.jpg`;
+      
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Liberar memoria
+      URL.revokeObjectURL(url);
+      
+      // Restaurar botón
+      btnDownload.textContent = originalText;
+      btnDownload.disabled = false;
+      
+      // Mensaje de éxito
+      alert('✅ Calendario descargado correctamente');
+    }, 'image/jpeg', 0.95); // Calidad 95%
+
+  } catch (err) {
+    console.error('Error al descargar calendario:', err);
+    alert('❌ Error al generar la imagen. Por favor, intenta nuevamente.');
+    
+    // Restaurar botón
+    btnDownload.textContent = originalText;
+    btnDownload.disabled = false;
+  }
+}
+
 // Inicialización
 document.addEventListener('DOMContentLoaded', () => {
   // Verificar si es admin
@@ -374,6 +437,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnTogglePause = document.getElementById('btnTogglePause');
   if (btnTogglePause) {
     btnTogglePause.addEventListener('click', togglePause);
+  }
+
+  // Botón de descarga JPG (disponible para todos)
+  const btnDownloadJPG = document.getElementById('btnDownloadJPG');
+  if (btnDownloadJPG) {
+    btnDownloadJPG.addEventListener('click', downloadCalendarAsJPG);
   }
   
   // Iniciar polling si no está pausado
