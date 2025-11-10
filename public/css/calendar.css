@@ -162,3 +162,23 @@ body {
     padding: 8px;
   }
 }
+
+/* Agregar al final del archivo existente */
+
+.btn-pause {
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-pause:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.auto-update-status {
+  font-size: 0.85em;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #f0f0f0;
+}
