@@ -1,29 +1,172 @@
 <!doctype html>
-<html>
+<html lang="es">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Escala EBI</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .autocomplete-container {
+      position: relative;
+      width: 100%;
+    }
+    .autocomplete-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 2px solid #667eea;
+      border-top: none;
+      border-radius: 0 0 10px 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+    }
+    .autocomplete-dropdown.visible {
+      display: block;
+    }
+    .autocomplete-item {
+      padding: 12px 15px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+      transition: background 0.2s;
+    }
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+      background: #f0f0ff;
+    }
+    .admin-link {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      color: #999;
+      text-decoration: none;
+      font-size: 13px;
+    }
+    .admin-link:hover {
+      color: #667eea;
+    }
+  </style>
 </head>
 <body>
   <div class="login">
     <h1>Escala EBI</h1>
-    <input id="name" placeholder="Nombre y apellido">
-    <input id="password" placeholder="Contraseña (admin)" type="password">
+    <div class="autocomplete-container">
+      <input id="name" placeholder="Nombre y apellido" autocomplete="off">
+      <div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
+    </div>
     <button id="btnLogin">Entrar</button>
+    <a href="/admin.html" class="admin-link">🔐 Acceso administrador</a>
   </div>
+  
+  <script src="js/nameStore.js"></script>
   <script>
-    document.getElementById('btnLogin').addEventListener('click', () => {
-      const name = document.getElementById('name').value.trim();
-      const pwd = document.getElementById('password').value.trim();
-      if (pwd === 'admin123') {
-        localStorage.setItem('isAdmin', 'true');
-        localStorage.setItem('userName', 'Administrador');
-      } else {
-        localStorage.setItem('isAdmin', 'false');
-        localStorage.setItem('userName', name);
+    const nameInput = document.getElementById('name');
+    const dropdown = document.getElementById('autocomplete-dropdown');
+    let selectedIndex = -1;
+    let sugerencias = [];
+    
+    function mostrarSugerencias(lista) {
+      sugerencias = lista;
+      selectedIndex = -1;
+      
+      if (lista.length === 0) {
+        dropdown.classList.remove('visible');
+        return;
       }
+      
+      dropdown.innerHTML = lista.map((nombre, i) => 
+        `<div class="autocomplete-item" data-index="${i}">${nombre}</div>`
+      ).join('');
+      dropdown.classList.add('visible');
+      
+      // Event listeners para cada item
+      dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
+        item.addEventListener('click', () => {
+          nameInput.value = item.textContent;
+          dropdown.classList.remove('visible');
+        });
+      });
+    }
+    
+    function actualizarSeleccion() {
+      dropdown.querySelectorAll('.autocomplete-item').forEach((item, i) => {
+        item.classList.toggle('selected', i === selectedIndex);
+      });
+    }
+    
+    nameInput.addEventListener('input', () => {
+      const valor = nameInput.value.trim();
+      if (valor.length > 0) {
+        const resultados = window.nameStore.buscar(valor);
+        mostrarSugerencias(resultados);
+      } else {
+        dropdown.classList.remove('visible');
+      }
+    });
+    
+    nameInput.addEventListener('focus', () => {
+      const valor = nameInput.value.trim();
+      if (valor.length > 0) {
+        const resultados = window.nameStore.buscar(valor);
+        mostrarSugerencias(resultados);
+      } else {
+        // Mostrar todos los nombres si el campo está vacío
+        const todos = window.nameStore.obtenerTodos();
+        if (todos.length > 0) {
+          mostrarSugerencias(todos);
+        }
+      }
+    });
+    
+    nameInput.addEventListener('keydown', (e) => {
+      if (!dropdown.classList.contains('visible')) return;
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = Math.min(selectedIndex + 1, sugerencias.length - 1);
+        actualizarSeleccion();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = Math.max(selectedIndex - 1, 0);
+        actualizarSeleccion();
+      } else if (e.key === 'Enter' && selectedIndex >= 0) {
+        e.preventDefault();
+        nameInput.value = sugerencias[selectedIndex];
+        dropdown.classList.remove('visible');
+      } else if (e.key === 'Escape') {
+        dropdown.classList.remove('visible');
+      }
+    });
+    
+    // Cerrar dropdown al hacer click fuera
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.autocomplete-container')) {
+        dropdown.classList.remove('visible');
+      }
+    });
+    
+    document.getElementById('btnLogin').addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      if (!name) {
+        alert('Por favor, ingresa tu nombre y apellido');
+        return;
+      }
+      localStorage.setItem('isAdmin', 'false');
+      localStorage.setItem('userName', name);
       location.href = '/tabla.html';
+    });
+    
+    // Allow pressing Enter to submit
+    nameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !dropdown.classList.contains('visible')) {
+        document.getElementById('btnLogin').click();
+      }
     });
   </script>
 </body>

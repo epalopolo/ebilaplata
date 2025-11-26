@@ -229,9 +229,75 @@ async function guardarCambios() {
     return;
   }
 
-  if (!confirm(`¿Confirmar ${cambiosPendientes.size} nuevas asignaciones?\n\nTendrás en total: ${totalConPendientes} turnos asignados`)) {
-    return;
-  }
+  // Mostrar modal de confirmación en lugar de confirmar directamente
+  mostrarModalConfirmacion();
+}
+
+// Función para mostrar el modal de confirmación
+function mostrarModalConfirmacion() {
+  const modal = document.getElementById('modal-confirmacion');
+  const tbody = document.getElementById('modal-turnos-lista');
+  
+  // Construir la lista de turnos seleccionados
+  const turnosSeleccionados = [];
+  
+  turnos.forEach(turno => {
+    const roles = [
+      { id: turno.titular_id, nombre: 'Titular' },
+      { id: turno.auxiliar_1_id, nombre: 'Auxiliar 1' },
+      { id: turno.auxiliar_2_id, nombre: 'Auxiliar 2' },
+      { id: turno.auxiliar_3_id, nombre: 'Auxiliar 3' }
+    ];
+    
+    roles.forEach(rol => {
+      if (cambiosPendientes.has(rol.id)) {
+        // Formatear la fecha
+        let fechaFormateada = 'Fecha inválida';
+        try {
+          const fechaISO = turno.fecha.split('T')[0];
+          const [year, month, day] = fechaISO.split('-');
+          fechaFormateada = `${day}/${month}/${year}`;
+        } catch (e) {
+          console.error('Error al parsear fecha:', turno.fecha, e);
+        }
+        
+        const horaCorta = turno.hora ? turno.hora.substring(0, 5) : '00:00';
+        
+        turnosSeleccionados.push({
+          dia: turno.dia,
+          fecha: fechaFormateada,
+          hora: horaCorta,
+          sala: turno.sala,
+          rol: rol.nombre
+        });
+      }
+    });
+  });
+  
+  // Renderizar la tabla
+  tbody.innerHTML = turnosSeleccionados.map(t => `
+    <tr>
+      <td>${t.dia}</td>
+      <td>${t.fecha}</td>
+      <td>${t.hora}</td>
+      <td>${t.sala}</td>
+      <td>${t.rol}</td>
+    </tr>
+  `).join('');
+  
+  // Mostrar el modal
+  modal.classList.remove('hidden');
+}
+
+// Función para ocultar el modal
+function ocultarModalConfirmacion() {
+  const modal = document.getElementById('modal-confirmacion');
+  modal.classList.add('hidden');
+}
+
+// Función para confirmar y guardar definitivamente
+async function confirmarGuardado() {
+  ocultarModalConfirmacion();
 
   const btnGuardar = document.getElementById('btnGuardarCambios');
   btnGuardar.disabled = true;
@@ -254,6 +320,11 @@ async function guardarCambios() {
     const data = await res.json();
     
     if (res.ok) {
+      // Guardar el nombre en localStorage para sugerencias futuras
+      if (window.nameStore && userName) {
+        window.nameStore.guardar(userName);
+      }
+      
       alert('✅ ' + data.mensaje);
       cambiosPendientes.clear();
       await cargarTurnos(); // Recargar desde el servidor
@@ -267,6 +338,10 @@ async function guardarCambios() {
     btnGuardar.innerHTML = textoOriginal;
   }
 }
+
+// Event listeners para los botones del modal
+document.getElementById('btnModalAceptar').addEventListener('click', confirmarGuardado);
+document.getElementById('btnModalModificar').addEventListener('click', ocultarModalConfirmacion);
 
 async function desasignarPuesto(asignacionId) {
   try {
