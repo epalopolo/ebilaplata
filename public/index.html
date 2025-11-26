@@ -125,20 +125,24 @@
     });
     
     nameInput.addEventListener('keydown', (e) => {
-      if (!dropdown.classList.contains('visible')) return;
-      
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' && dropdown.classList.contains('visible')) {
         e.preventDefault();
         selectedIndex = Math.min(selectedIndex + 1, sugerencias.length - 1);
         actualizarSeleccion();
-      } else if (e.key === 'ArrowUp') {
+      } else if (e.key === 'ArrowUp' && dropdown.classList.contains('visible')) {
         e.preventDefault();
         selectedIndex = Math.max(selectedIndex - 1, 0);
         actualizarSeleccion();
-      } else if (e.key === 'Enter' && selectedIndex >= 0) {
-        e.preventDefault();
-        nameInput.value = sugerencias[selectedIndex];
-        dropdown.classList.remove('visible');
+      } else if (e.key === 'Enter') {
+        if (dropdown.classList.contains('visible') && selectedIndex >= 0) {
+          e.preventDefault();
+          nameInput.value = sugerencias[selectedIndex];
+          dropdown.classList.remove('visible');
+        } else {
+          // Si no hay dropdown visible o no hay selección, hacer login
+          e.preventDefault();
+          document.getElementById('btnLogin').click();
+        }
       } else if (e.key === 'Escape') {
         dropdown.classList.remove('visible');
       }
@@ -160,13 +164,6 @@
       localStorage.setItem('isAdmin', 'false');
       localStorage.setItem('userName', name);
       location.href = '/tabla.html';
-    });
-    
-    // Allow pressing Enter to submit
-    nameInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !dropdown.classList.contains('visible')) {
-        document.getElementById('btnLogin').click();
-      }
     });
   </script>
 </body>

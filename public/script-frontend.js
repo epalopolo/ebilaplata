@@ -331,17 +331,27 @@ async function confirmarGuardado() {
     } else {
       alert('❌ ' + data.error);
       btnGuardar.innerHTML = textoOriginal;
+      btnGuardar.disabled = false;
+      actualizarBotonGuardar();
     }
   } catch (err) {
     console.error('Error:', err);
     alert('❌ Error al guardar los cambios');
     btnGuardar.innerHTML = textoOriginal;
+    btnGuardar.disabled = false;
+    actualizarBotonGuardar();
   }
 }
 
-// Event listeners para los botones del modal
-document.getElementById('btnModalAceptar').addEventListener('click', confirmarGuardado);
-document.getElementById('btnModalModificar').addEventListener('click', ocultarModalConfirmacion);
+// Event listeners para los botones del modal (solo si existen)
+const btnModalAceptar = document.getElementById('btnModalAceptar');
+const btnModalModificar = document.getElementById('btnModalModificar');
+if (btnModalAceptar) {
+  btnModalAceptar.addEventListener('click', confirmarGuardado);
+}
+if (btnModalModificar) {
+  btnModalModificar.addEventListener('click', ocultarModalConfirmacion);
+}
 
 async function desasignarPuesto(asignacionId) {
   try {
