@@ -33,6 +33,36 @@
   </div>
   
   <div id="turnos-container"></div>
+
+  <!-- Modal de Confirmación -->
+  <div id="modal-confirmacion" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>⚠️ ATENCIÓN</h2>
+        <p>Estás anotándote para las siguientes escalas:</p>
+      </div>
+      <div class="modal-body">
+        <table class="modal-table">
+          <thead>
+            <tr>
+              <th>Día</th>
+              <th>Fecha</th>
+              <th>Horario</th>
+              <th>Sala</th>
+              <th>Rol</th>
+            </tr>
+          </thead>
+          <tbody id="modal-turnos-lista">
+            <!-- Los turnos se insertan aquí dinámicamente -->
+          </tbody>
+        </table>
+        <div class="modal-footer">
+          <button id="btnModalModificar" class="modal-btn modal-btn-modificar">✏️ Modificar</button>
+          <button id="btnModalAceptar" class="modal-btn modal-btn-aceptar">✅ Aceptar</button>
+        </div>
+      </div>
+    </div>
+  </div>
   
   <script>
     // abrir calendario al hacer click
@@ -44,6 +74,7 @@
     });
   </script>
 
+  <script src="js/nameStore.js"></script>
   <script src="script-frontend.js"></script>
 </body>
 </html>

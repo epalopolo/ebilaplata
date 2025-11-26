@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escala EBI - Administración</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="login">
+    <h1>🔐 Administración</h1>
+    <p style="text-align: center; color: #666; margin-bottom: 20px;">Acceso exclusivo para administradores</p>
+    <input id="password" placeholder="Contraseña de administrador" type="password">
+    <button id="btnLogin">Entrar como Admin</button>
+    <a href="/" style="display: block; text-align: center; margin-top: 15px; color: #667eea; text-decoration: none;">← Volver al inicio</a>
+  </div>
+  <script>
+    document.getElementById('btnLogin').addEventListener('click', () => {
+      const pwd = document.getElementById('password').value.trim();
+      if (pwd === 'admin123') {
+        localStorage.setItem('isAdmin', 'true');
+        localStorage.setItem('userName', 'Administrador');
+        location.href = '/tabla.html';
+      } else {
+        alert('❌ Contraseña incorrecta');
+      }
+    });
+    
+    // Allow pressing Enter to submit
+    document.getElementById('password').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('btnLogin').click();
+      }
+    });
+  </script>
+</body>
+</html>
