@@ -53,6 +53,25 @@ app.get('/api/mis-asignaciones', async (req, res) => {
   }
 });
 
+// API: Obtener todos los nombres únicos de usuarios
+app.get('/api/nombres', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT DISTINCT nombre_usuario 
+      FROM asignaciones 
+      WHERE nombre_usuario IS NOT NULL 
+        AND nombre_usuario != ''
+      ORDER BY nombre_usuario
+    `);
+    
+    const nombres = rows.map(r => r.nombre_usuario);
+    res.json({ nombres });
+  } catch (err) {
+    console.error('Error al obtener nombres:', err);
+    res.status(500).json({ error: 'Error al obtener nombres' });
+  }
+});
+
 // API: Asignar usuario a un puesto
 app.post('/api/asignar', async (req, res) => {
   try {

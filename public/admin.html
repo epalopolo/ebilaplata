@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escala EBI - Acceso Administrador</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .login h1 {
+      font-size: 28px;
+    }
+    .admin-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+      color: white;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .back-link {
+      display: block;
+      margin-top: 20px;
+      text-align: center;
+      color: #667eea;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="login">
+    <h1>Escala EBI</h1>
+    <span class="admin-badge">👑 Acceso Administrador</span>
+    <input id="password" placeholder="Contraseña de administrador" type="password">
+    <button id="btnLogin">Ingresar como Admin</button>
+    <a href="/" class="back-link">← Volver al acceso normal</a>
+  </div>
+  <script>
+    document.getElementById('btnLogin').addEventListener('click', () => {
+      const pwd = document.getElementById('password').value.trim();
+      if (pwd === 'admin123') {
+        localStorage.setItem('isAdmin', 'true');
+        localStorage.setItem('userName', 'Administrador');
+        location.href = '/tabla.html';
+      } else {
+        alert('❌ Contraseña incorrecta');
+      }
+    });
+
+    // Allow pressing Enter to submit
+    document.getElementById('password').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('btnLogin').click();
+      }
+    });
+  </script>
+</body>
+</html>

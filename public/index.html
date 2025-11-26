@@ -2,29 +2,234 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Escala EBI</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .autocomplete-wrapper {
+      position: relative;
+      width: 100%;
+    }
+    .autocomplete-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: white;
+      border: 2px solid #667eea;
+      border-top: none;
+      border-radius: 0 0 10px 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .autocomplete-dropdown.show {
+      display: block;
+    }
+    .autocomplete-item {
+      padding: 12px 15px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background 0.2s;
+    }
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+      background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
+    }
+    .autocomplete-item strong {
+      color: #667eea;
+    }
+    .admin-link {
+      display: block;
+      margin-top: 20px;
+      text-align: center;
+      color: #999;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    .admin-link:hover {
+      color: #667eea;
+    }
+  </style>
 </head>
 <body>
   <div class="login">
     <h1>Escala EBI</h1>
-    <input id="name" placeholder="Nombre y apellido">
-    <input id="password" placeholder="Contraseña (admin)" type="password">
+    <div class="autocomplete-wrapper">
+      <input id="name" placeholder="Nombre y apellido" autocomplete="off">
+      <div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
+    </div>
     <button id="btnLogin">Entrar</button>
+    <a href="/admin.html" class="admin-link">Acceso administrador</a>
   </div>
   <script>
+    // Stored names for autocomplete
+    let storedNames = [];
+    let selectedIndex = -1;
+
+    // Load names from localStorage and server
+    async function loadStoredNames() {
+      // Get from localStorage first
+      const localNames = JSON.parse(localStorage.getItem('storedNames') || '[]');
+      
+      // Try to get from server
+      try {
+        const res = await fetch('/api/nombres');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.nombres && Array.isArray(data.nombres)) {
+            // Merge local and server names, removing duplicates
+            const allNames = [...new Set([...localNames, ...data.nombres])];
+            storedNames = allNames.sort((a, b) => a.localeCompare(b, 'es'));
+            // Update localStorage
+            localStorage.setItem('storedNames', JSON.stringify(storedNames));
+          }
+        }
+      } catch (err) {
+        console.log('Could not fetch names from server, using local only');
+        storedNames = localNames;
+      }
+    }
+
+    // Filter and show autocomplete suggestions
+    function showSuggestions(inputValue) {
+      const dropdown = document.getElementById('autocomplete-dropdown');
+      dropdown.innerHTML = '';
+      selectedIndex = -1;
+      
+      if (!inputValue || inputValue.length < 2) {
+        dropdown.classList.remove('show');
+        return;
+      }
+      
+      const searchTerm = inputValue.toLowerCase();
+      const matches = storedNames.filter(name => 
+        name.toLowerCase().includes(searchTerm)
+      ).slice(0, 8); // Limit to 8 suggestions
+      
+      if (matches.length === 0) {
+        dropdown.classList.remove('show');
+        return;
+      }
+      
+      matches.forEach((name, index) => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        // Highlight matching text
+        const regex = new RegExp(`(${inputValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        item.innerHTML = name.replace(regex, '<strong>$1</strong>');
+        item.addEventListener('click', () => selectName(name));
+        dropdown.appendChild(item);
+      });
+      
+      dropdown.classList.add('show');
+    }
+
+    // Select a name from suggestions
+    function selectName(name) {
+      document.getElementById('name').value = name;
+      document.getElementById('autocomplete-dropdown').classList.remove('show');
+      selectedIndex = -1;
+    }
+
+    // Save name to storage
+    function saveName(name) {
+      if (!name) return;
+      const normalizedName = name.trim();
+      if (normalizedName.length < 2) return;
+      
+      if (!storedNames.includes(normalizedName)) {
+        storedNames.push(normalizedName);
+        storedNames.sort((a, b) => a.localeCompare(b, 'es'));
+        localStorage.setItem('storedNames', JSON.stringify(storedNames));
+      }
+    }
+
+    // Event listeners
+    const nameInput = document.getElementById('name');
+    const dropdown = document.getElementById('autocomplete-dropdown');
+
+    nameInput.addEventListener('input', (e) => {
+      showSuggestions(e.target.value);
+    });
+
+    nameInput.addEventListener('focus', (e) => {
+      if (e.target.value.length >= 2) {
+        showSuggestions(e.target.value);
+      }
+    });
+
+    nameInput.addEventListener('keydown', (e) => {
+      const items = dropdown.querySelectorAll('.autocomplete-item');
+      
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (selectedIndex < items.length - 1) {
+          selectedIndex++;
+          updateSelection(items);
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (selectedIndex > 0) {
+          selectedIndex--;
+          updateSelection(items);
+        }
+      } else if (e.key === 'Enter') {
+        if (selectedIndex >= 0 && items[selectedIndex]) {
+          e.preventDefault();
+          selectName(items[selectedIndex].textContent);
+        } else if (dropdown.classList.contains('show')) {
+          dropdown.classList.remove('show');
+        }
+      } else if (e.key === 'Escape') {
+        dropdown.classList.remove('show');
+        selectedIndex = -1;
+      }
+    });
+
+    function updateSelection(items) {
+      items.forEach((item, i) => {
+        item.classList.toggle('selected', i === selectedIndex);
+      });
+      if (items[selectedIndex]) {
+        items[selectedIndex].scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.autocomplete-wrapper')) {
+        dropdown.classList.remove('show');
+      }
+    });
+
+    // Login handler
     document.getElementById('btnLogin').addEventListener('click', () => {
       const name = document.getElementById('name').value.trim();
-      const pwd = document.getElementById('password').value.trim();
-      if (pwd === 'admin123') {
-        localStorage.setItem('isAdmin', 'true');
-        localStorage.setItem('userName', 'Administrador');
-      } else {
-        localStorage.setItem('isAdmin', 'false');
-        localStorage.setItem('userName', name);
+      if (!name) {
+        alert('Por favor, ingresá tu nombre');
+        return;
       }
+      localStorage.setItem('isAdmin', 'false');
+      localStorage.setItem('userName', name);
+      saveName(name);
       location.href = '/tabla.html';
     });
+
+    // Allow pressing Enter on name field to login
+    nameInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !dropdown.classList.contains('show')) {
+        document.getElementById('btnLogin').click();
+      }
+    });
+
+    // Load stored names on page load
+    loadStoredNames();
   </script>
 </body>
 </html>

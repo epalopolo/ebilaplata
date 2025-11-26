@@ -215,24 +215,101 @@ function actualizarBotonGuardar() {
   document.getElementById('contador-cambios').style.display = contador.style.display;
 }
 
-async function guardarCambios() {
-  const totalConPendientes = asignacionesGuardadas + cambiosPendientes.size;
+// Get turno details for a given asignacion_id
+function getTurnoDetalles(asignacionId) {
+  for (const turno of turnos) {
+    // Check each role
+    const roles = [
+      { id: turno.titular_id, nombre: 'Titular' },
+      { id: turno.auxiliar_1_id, nombre: 'Auxiliar 1' },
+      { id: turno.auxiliar_2_id, nombre: 'Auxiliar 2' },
+      { id: turno.auxiliar_3_id, nombre: 'Auxiliar 3' }
+    ];
+    
+    for (const rol of roles) {
+      if (rol.id === asignacionId) {
+        // Parse and format date
+        let fechaFormateada = 'Fecha inválida';
+        try {
+          const fechaISO = turno.fecha.split('T')[0];
+          const [year, month, day] = fechaISO.split('-');
+          fechaFormateada = `${day}/${month}/${year}`;
+        } catch (e) {
+          console.error('Error al parsear fecha:', turno.fecha, e);
+        }
+        
+        const horaCorta = turno.hora ? turno.hora.substring(0, 5) : '00:00';
+        
+        return {
+          dia: turno.dia,
+          fecha: fechaFormateada,
+          hora: horaCorta,
+          sala: turno.sala,
+          rol: rol.nombre
+        };
+      }
+    }
+  }
+  return null;
+}
+
+// Show confirmation modal
+function mostrarModalConfirmacion() {
+  const modal = document.getElementById('confirmModal');
+  const tbody = document.getElementById('modal-turnos-body');
+  const countEl = document.getElementById('modal-count');
   
-  if (totalConPendientes < 3) {
-    const faltantes = 3 - totalConPendientes;
-    alert(`⚠️ Te faltan ${faltantes} turnos más para completar el mínimo de 3.\nActualmente tienes:\n- ${asignacionesGuardadas} ya guardados\n- ${cambiosPendientes.size} pendientes de guardar\n\nTotal: ${totalConPendientes}/3`);
-    return;
-  }
+  // Clear previous content
+  tbody.innerHTML = '';
+  
+  // Get details for each pending assignment
+  const detalles = [];
+  cambiosPendientes.forEach(asignacionId => {
+    const detalle = getTurnoDetalles(asignacionId);
+    if (detalle) {
+      detalles.push(detalle);
+    }
+  });
+  
+  // Sort by date and time
+  detalles.sort((a, b) => {
+    const dateA = a.fecha.split('/').reverse().join('');
+    const dateB = b.fecha.split('/').reverse().join('');
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    return a.hora.localeCompare(b.hora);
+  });
+  
+  // Update count
+  countEl.textContent = detalles.length;
+  
+  // Populate table
+  detalles.forEach(detalle => {
+    const tr = document.createElement('tr');
+    const rolClass = detalle.rol === 'Titular' ? 'rol-titular' : 'rol-auxiliar';
+    tr.innerHTML = `
+      <td>${detalle.dia}</td>
+      <td>${detalle.fecha}</td>
+      <td>${detalle.hora}</td>
+      <td>${detalle.sala}</td>
+      <td><span class="rol-badge ${rolClass}">${detalle.rol}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  // Show modal
+  modal.classList.add('show');
+}
 
-  if (cambiosPendientes.size === 0) {
-    alert('⚠️ No hay cambios pendientes para guardar');
-    return;
-  }
+// Hide confirmation modal
+function ocultarModalConfirmacion() {
+  const modal = document.getElementById('confirmModal');
+  modal.classList.remove('show');
+}
 
-  if (!confirm(`¿Confirmar ${cambiosPendientes.size} nuevas asignaciones?\n\nTendrás en total: ${totalConPendientes} turnos asignados`)) {
-    return;
-  }
-
+// Actually save the changes to the server
+async function confirmarGuardado() {
+  ocultarModalConfirmacion();
+  
   const btnGuardar = document.getElementById('btnGuardarCambios');
   btnGuardar.disabled = true;
   const textoOriginal = btnGuardar.innerHTML;
@@ -260,12 +337,32 @@ async function guardarCambios() {
     } else {
       alert('❌ ' + data.error);
       btnGuardar.innerHTML = textoOriginal;
+      btnGuardar.disabled = false;
     }
   } catch (err) {
     console.error('Error:', err);
     alert('❌ Error al guardar los cambios');
     btnGuardar.innerHTML = textoOriginal;
+    btnGuardar.disabled = false;
   }
+}
+
+async function guardarCambios() {
+  const totalConPendientes = asignacionesGuardadas + cambiosPendientes.size;
+  
+  if (totalConPendientes < 3) {
+    const faltantes = 3 - totalConPendientes;
+    alert(`⚠️ Te faltan ${faltantes} turnos más para completar el mínimo de 3.\nActualmente tienes:\n- ${asignacionesGuardadas} ya guardados\n- ${cambiosPendientes.size} pendientes de guardar\n\nTotal: ${totalConPendientes}/3`);
+    return;
+  }
+
+  if (cambiosPendientes.size === 0) {
+    alert('⚠️ No hay cambios pendientes para guardar');
+    return;
+  }
+
+  // Show confirmation modal instead of confirm()
+  mostrarModalConfirmacion();
 }
 
 async function desasignarPuesto(asignacionId) {
@@ -360,6 +457,17 @@ document.getElementById('btnLimpiar').addEventListener('click', async () => {
 
 // Botón guardar cambios
 document.getElementById('btnGuardarCambios').addEventListener('click', guardarCambios);
+
+// Modal buttons
+document.getElementById('btnModalConfirm').addEventListener('click', confirmarGuardado);
+document.getElementById('btnModalCancel').addEventListener('click', ocultarModalConfirmacion);
+
+// Close modal when clicking overlay (outside the modal content)
+document.getElementById('confirmModal').addEventListener('click', (e) => {
+  if (e.target.id === 'confirmModal') {
+    ocultarModalConfirmacion();
+  }
+});
 
 // Cerrar sesión
 document.getElementById('btnLogout').addEventListener('click', () => {
