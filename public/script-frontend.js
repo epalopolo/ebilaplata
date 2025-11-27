@@ -282,6 +282,7 @@ function mostrarModalConfirmacion() {
       <td>${t.hora}</td>
       <td>${t.sala}</td>
       <td>${t.rol}</td>
+      <td>${userName}</td>
     </tr>
   `).join('');
   
@@ -297,6 +298,98 @@ function ocultarModalConfirmacion() {
 
 // Función para confirmar y guardar definitivamente
 async function confirmarGuardado() {
+  // Generar el PNG ANTES de ocultar el modal (mientras la tabla aún es visible)
+  // Guardamos la promesa para descargar después de guardar exitosamente
+  let pngDataUrl = null;
+  let nombreArchivo = null;
+  
+  try {
+    const tablaParaCaptura = document.getElementById('tabla-para-captura');
+    
+    if (tablaParaCaptura) {
+      // Crear un contenedor temporal con estilos para la captura
+      const contenedorTemporal = document.createElement('div');
+      contenedorTemporal.style.position = 'absolute';
+      contenedorTemporal.style.left = '-9999px';
+      contenedorTemporal.style.top = '0';
+      contenedorTemporal.style.background = 'white';
+      contenedorTemporal.style.padding = '30px';
+      contenedorTemporal.style.borderRadius = '15px';
+      contenedorTemporal.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+      
+      // Crear título
+      const titulo = document.createElement('div');
+      titulo.innerHTML = `
+        <h2 style="color: #667eea; margin: 0 0 10px 0; font-size: 24px; text-align: center;">📅 Escala EBI</h2>
+        <p style="color: #666; margin: 0 0 20px 0; text-align: center; font-size: 14px;">Turnos asignados a <strong>${userName}</strong></p>
+      `;
+      contenedorTemporal.appendChild(titulo);
+      
+      // Clonar la tabla
+      const tablaClonada = tablaParaCaptura.cloneNode(true);
+      tablaClonada.style.width = '100%';
+      tablaClonada.style.borderCollapse = 'collapse';
+      
+      // Aplicar estilos inline a la tabla clonada para que se vean en la captura
+      const thElements = tablaClonada.querySelectorAll('th');
+      thElements.forEach(th => {
+        th.style.background = '#667eea';
+        th.style.color = 'white';
+        th.style.padding = '12px 15px';
+        th.style.textAlign = 'left';
+        th.style.fontWeight = '600';
+        th.style.fontSize = '13px';
+        th.style.textTransform = 'uppercase';
+      });
+      
+      const tdElements = tablaClonada.querySelectorAll('td');
+      tdElements.forEach(td => {
+        td.style.padding = '12px 15px';
+        td.style.borderBottom = '1px solid #eee';
+        td.style.fontSize = '14px';
+        td.style.color = '#333';
+      });
+      
+      contenedorTemporal.appendChild(tablaClonada);
+      
+      // Agregar pie de página con fecha de generación
+      const fechaActual = new Date().toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      const pie = document.createElement('p');
+      pie.style.cssText = 'color: #999; font-size: 11px; margin-top: 20px; text-align: center;';
+      pie.textContent = `Generado el ${fechaActual}`;
+      contenedorTemporal.appendChild(pie);
+      
+      document.body.appendChild(contenedorTemporal);
+      
+      // Generar la imagen con html2canvas
+      const canvas = await html2canvas(contenedorTemporal, {
+        backgroundColor: '#ffffff',
+        scale: 2, // Mayor resolución para mejor calidad
+        logging: false,
+        useCORS: true
+      });
+      
+      // Limpiar el contenedor temporal
+      document.body.removeChild(contenedorTemporal);
+      
+      // Preparar los datos del PNG para descarga posterior
+      pngDataUrl = canvas.toDataURL('image/png');
+      const fechaArchivo = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const nombreLimpio = userName.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/g, '_');
+      nombreArchivo = `escalas_${nombreLimpio}_${fechaArchivo}.png`;
+    }
+  } catch (error) {
+    console.error('Error al preparar PNG (html2canvas):', error);
+    // Continuamos con el guardado aunque falle la generación del PNG
+  }
+  
+  // Ahora ocultamos el modal
   ocultarModalConfirmacion();
 
   const btnGuardar = document.getElementById('btnGuardarCambios');
@@ -323,6 +416,15 @@ async function confirmarGuardado() {
       // Guardar el nombre en localStorage para sugerencias futuras
       if (window.nameStore && userName) {
         window.nameStore.guardar(userName);
+      }
+      
+      // Descargar el PNG después de guardar exitosamente
+      if (pngDataUrl && nombreArchivo) {
+        const link = document.createElement('a');
+        link.download = nombreArchivo;
+        link.href = pngDataUrl;
+        link.click();
+        console.log('PNG descargado correctamente:', nombreArchivo);
       }
       
       alert('✅ ' + data.mensaje);
